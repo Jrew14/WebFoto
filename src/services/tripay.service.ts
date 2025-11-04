@@ -84,7 +84,13 @@ class TripayService {
   }
 
   private async request<T>(path: string, options: TripayRequestOptions = {}): Promise<T> {
+    // Validate credentials before making request
+    if (!API_KEY || !PRIVATE_KEY || !MERCHANT_CODE) {
+      throw new Error("Tripay credentials not configured. Please set TRIPAY_API_KEY, TRIPAY_PRIVATE_KEY, and TRIPAY_MERCHANT_CODE in .env.local and restart server.");
+    }
+
     const url = `${BASE_URL}${path}`;
+    console.log(`[Tripay] Making request to: ${url}`);
 
     const response = await fetch(url, {
       method: options.method ?? "GET",
@@ -96,6 +102,14 @@ class TripayService {
       body: options.body ? JSON.stringify(options.body) : undefined,
       next: { revalidate: 0 },
     });
+
+    // Check if response is JSON
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      const text = await response.text();
+      console.error("[Tripay] Non-JSON response:", text.substring(0, 200));
+      throw new Error(`Tripay API returned non-JSON response (likely HTML error page). Status: ${response.status}. Check your API credentials.`);
+    }
 
     const json = await response.json();
 
