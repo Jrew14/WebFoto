@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     // Get request body
     const body = await request.json();
-    const { photoId } = body;
+    const { photoId, paymentMethod } = body;
 
     if (!photoId) {
       return NextResponse.json(
@@ -29,17 +29,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create purchase and get payment URL
-    const { purchase, invoiceUrl } = await paymentService.createPurchase({
+    // Create purchase and get Tripay checkout details
+    const { purchase, checkoutUrl, payCode, reference } = await paymentService.createPurchase({
       buyerId: user.id,
       photoId: photoId,
       buyerEmail: user.email!,
+      paymentMethod,
     });
 
     return NextResponse.json({
       success: true,
       purchase,
-      invoiceUrl,
+      checkoutUrl,
+      payCode,
+      reference,
     });
   } catch (error) {
     console.error('Create purchase error:', error);

@@ -6,6 +6,14 @@ import { Search, X, ShoppingCart, ImageIcon, Bookmark, Loader2 } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -56,9 +64,17 @@ interface EventWithPhotographer {
   };
 }
 
+interface TripayChannel {
+  code: string;
+  name: string;
+  type: string;
+  group?: string;
+}
+
 export default function ShopPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
+  const defaultPaymentMethod = process.env.NEXT_PUBLIC_TRIPAY_DEFAULT_METHOD ?? "";
   const [photos, setPhotos] = useState<PhotoWithRelations[]>([]);
   const [events, setEvents] = useState<EventWithPhotographer[]>([]);
   const [filterEvent, setFilterEvent] = useState<string>("all");
@@ -97,6 +113,10 @@ export default function ShopPage() {
   const [buyDialog, setBuyDialog] = useState(false);
   const [selectedPhotoForBuy, setSelectedPhotoForBuy] = useState<PhotoWithRelations | null>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [paymentChannels, setPaymentChannels] = useState<TripayChannel[]>([]);
+  const [selectedPaymentChannel, setSelectedPaymentChannel] = useState<string>("");
+  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [channelError, setChannelError] = useState<string | null>(null);
 
   // Helper functions for dialogs
   const showAlert = (title: string, description: string) => {
@@ -130,10 +150,19 @@ export default function ShopPage() {
   const handleProceedToPayment = async () => {
     if (!selectedPhotoForBuy) return;
 
+    if (!selectedPaymentChannel) {
+      showAlert('Select Payment Method', 'Please choose a payment channel before continuing.');
+      return;
+    }
+
+    if (channelError) {
+      showAlert('Payment Unavailable', channelError);
+      return;
+    }
+
     try {
       setProcessingPayment(true);
 
-      // Call API to create purchase
       const response = await fetch('/api/purchases/create', {
         method: 'POST',
         headers: {
@@ -141,6 +170,7 @@ export default function ShopPage() {
         },
         body: JSON.stringify({
           photoId: selectedPhotoForBuy.id,
+          paymentMethod: selectedPaymentChannel,
         }),
       });
 
@@ -150,8 +180,25 @@ export default function ShopPage() {
         throw new Error(data.error || 'Failed to create purchase');
       }
 
-      // Redirect to Xendit payment page
-      window.location.href = data.invoiceUrl;
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl as string;
+        return;
+      }
+
+      setProcessingPayment(false);
+
+      if (data.payCode) {
+        showAlert(
+          'Payment Code Generated',
+          `Use the payment code below to complete your payment:\n\n${data.payCode}`
+        );
+        return;
+      }
+
+      showAlert(
+        'Payment Created',
+        'Your payment request was created but no checkout URL was returned. Please contact support.'
+      );
     } catch (error) {
       console.error('Payment error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to process payment';
@@ -159,6 +206,45 @@ export default function ShopPage() {
       setProcessingPayment(false);
     }
   };
+
+  useEffect(() => {
+    async function loadChannels() {
+      try {
+        setLoadingChannels(true);
+        setChannelError(null);
+
+        const response = await fetch("/api/payment/channels");
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to load payment channels");
+        }
+
+        const channels: TripayChannel[] = Array.isArray(result.channels)
+          ? result.channels
+          : Array.isArray(result?.data)
+            ? result.data
+            : [];
+
+        setPaymentChannels(channels);
+
+        if (channels.length) {
+          const defaultCode = channels.find((channel) => channel.code === defaultPaymentMethod)?.code
+            ?? channels[0].code;
+
+          setSelectedPaymentChannel((current) => current || defaultCode);
+        }
+      } catch (error) {
+        console.error("Failed to load payment channels:", error);
+        const message = error instanceof Error ? error.message : "Failed to load payment channels";
+        setChannelError(message);
+      } finally {
+        setLoadingChannels(false);
+      }
+    }
+
+    loadChannels();
+  }, [defaultPaymentMethod]);
 
   // Load initial data
   useEffect(() => {
@@ -529,6 +615,46 @@ export default function ShopPage() {
                   </span>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="payment-channel" className="text-sm font-medium text-slate-700">
+                  Payment Channel
+                </Label>
+
+                {loadingChannels ? (
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading payment options...
+                  </div>
+                ) : paymentChannels.length > 0 ? (
+                  <Select
+                    value={selectedPaymentChannel}
+                    onValueChange={setSelectedPaymentChannel}
+                    disabled={processingPayment}
+                  >
+                    <SelectTrigger id="payment-channel">
+                      <SelectValue placeholder="Select a payment channel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {paymentChannels.map((channel) => (
+                        <SelectItem key={channel.code} value={channel.code}>
+                          {channel.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm text-red-500">
+                    No payment channels available. Please try again later.
+                  </p>
+                )}
+
+                {channelError && (
+                  <p className="text-sm text-red-500">
+                    {channelError}
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -543,7 +669,7 @@ export default function ShopPage() {
             <Button
               className="bg-[#48CAE4] hover:bg-[#3AAFCE]"
               onClick={handleProceedToPayment}
-              disabled={processingPayment}
+              disabled={processingPayment || loadingChannels || !selectedPaymentChannel || !!channelError}
             >
               {processingPayment ? (
                 <>

@@ -64,7 +64,7 @@ async function main() {
     }
   }
 
-  let finalUserId = userId;
+  let finalUserId: string | undefined = userId;
 
   if (!finalUserId) {
     const { data: refreshedUsers, error: refreshError } =
@@ -77,7 +77,7 @@ async function main() {
     finalUserId =
       refreshedUsers?.users.find(
         (user) => user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
-      )?.id ?? null;
+      )?.id ?? undefined;
   }
 
   if (!finalUserId) {

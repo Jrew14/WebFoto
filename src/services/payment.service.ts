@@ -1,19 +1,16 @@
-/**
- * Payment Service
- * 
- * Handles payment operations and purchase management
- */
-
-import { db } from '@/db';
-import { purchases, photos } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
-import { xenditService } from './xendit.service';
-import { nanoid } from 'nanoid';
+import { db } from "@/db";
+import { purchases, photos } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { tripayService, TripayTransaction } from "./tripay.service";
 
 export interface CreatePurchaseParams {
   buyerId: string;
-  photoId: string;
   buyerEmail: string;
+  photoId: string;
+  paymentMethod?: string | null;
+  buyerName?: string | null;
+  buyerPhone?: string | null;
 }
 
 export interface Purchase {
@@ -21,26 +18,40 @@ export interface Purchase {
   buyerId: string;
   photoId: string;
   amount: number;
+  totalAmount: number | null;
   paymentMethod: string | null;
-  paymentStatus: 'pending' | 'paid' | 'expired' | 'failed';
+  paymentStatus: "pending" | "paid" | "expired" | "failed";
   transactionId: string | null;
-  xenditInvoiceId: string | null;
-  xenditInvoiceUrl: string | null;
+  paymentReference: string | null;
+  paymentCheckoutUrl: string | null;
+  paymentCode: string | null;
+  paymentNote: string | null;
   paidAt: Date | null;
   expiresAt: Date | null;
   purchasedAt: Date;
 }
 
+const DEFAULT_PAYMENT_METHOD = process.env.NEXT_PUBLIC_TRIPAY_DEFAULT_METHOD ?? null;
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+const CALLBACK_URL = process.env.TRIPAY_CALLBACK_URL ?? `${APP_URL ?? ""}/api/webhooks/tripay`;
+
 export class PaymentService {
-  /**
-   * Create a new purchase and generate payment invoice
-   */
   async createPurchase(params: CreatePurchaseParams): Promise<{
     purchase: Purchase;
-    invoiceUrl: string;
+    checkoutUrl: string | null;
+    payCode: string | null;
+    reference: string | null;
   }> {
     try {
-      // Get photo details
+      if (!APP_URL) {
+        throw new Error("App URL is not configured. Please set NEXT_PUBLIC_APP_URL.");
+      }
+
+      const paymentMethod = params.paymentMethod || DEFAULT_PAYMENT_METHOD;
+      if (!paymentMethod) {
+        throw new Error("Payment method is required");
+      }
+
       const [photo] = await db
         .select()
         .from(photos)
@@ -48,14 +59,13 @@ export class PaymentService {
         .limit(1);
 
       if (!photo) {
-        throw new Error('Photo not found');
+        throw new Error("Photo not found");
       }
 
       if (photo.sold) {
-        throw new Error('Photo already sold');
+        throw new Error("Photo already sold");
       }
 
-      // Check if user already purchased this photo
       const [existingPurchase] = await db
         .select()
         .from(purchases)
@@ -63,64 +73,79 @@ export class PaymentService {
           and(
             eq(purchases.buyerId, params.buyerId),
             eq(purchases.photoId, params.photoId),
-            eq(purchases.paymentStatus, 'paid')
+            eq(purchases.paymentStatus, "paid")
           )
         )
         .limit(1);
 
       if (existingPurchase) {
-        throw new Error('You have already purchased this photo');
+        throw new Error("You have already purchased this photo");
       }
 
-      // Generate unique transaction ID
       const transactionId = `TXN-${Date.now()}-${nanoid(8)}`;
 
-      // Create Xendit invoice
-      const invoice = await xenditService.createInvoice({
-        externalId: transactionId,
+      const returnUrl = `${APP_URL}/payment/success?merchant_ref=${transactionId}`;
+      const failureUrl = `${APP_URL}/payment/failed?merchant_ref=${transactionId}`;
+
+      const transaction = await tripayService.createTransaction({
+        method: paymentMethod,
+        merchantRef: transactionId,
         amount: photo.price,
-        payerEmail: params.buyerEmail,
-        description: `Purchase photo: ${photo.name}`,
+        customerName: params.buyerName || params.buyerEmail.split("@")[0] || "Customer",
+        customerEmail: params.buyerEmail,
+        customerPhone: params.buyerPhone ?? null,
         items: [
           {
             name: photo.name,
             quantity: 1,
             price: photo.price,
             url: photo.previewUrl,
+            description: photo.eventId ? `Event ${photo.eventId}` : undefined,
           },
         ],
-        successRedirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success?transaction_id=${transactionId}`,
-        failureRedirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/payment/failed?transaction_id=${transactionId}`,
+        callbackUrl: CALLBACK_URL,
+        returnUrl,
       });
 
-      // Create purchase record
+      const expiresAt = transaction.expired_time
+        ? new Date(transaction.expired_time * 1000)
+        : null;
+
+      const paidAt = transaction.paid_time
+        ? new Date(transaction.paid_time * 1000)
+        : null;
+
       const [purchase] = await db
         .insert(purchases)
         .values({
           buyerId: params.buyerId,
           photoId: params.photoId,
           amount: photo.price,
-          paymentStatus: 'pending',
-          transactionId: transactionId,
-          xenditInvoiceId: invoice.id,
-          xenditInvoiceUrl: invoice.invoice_url,
-          expiresAt: new Date(invoice.expiry_date),
+          totalAmount: transaction.total_amount ?? transaction.amount,
+          paymentStatus: tripayService.mapTripayStatus(transaction.status),
+          paymentMethod,
+          transactionId,
+          paymentReference: transaction.reference,
+          paymentCheckoutUrl: transaction.checkout_url,
+          paymentCode: transaction.pay_code ?? null,
+          paymentNote: transaction.note ?? null,
+          paidAt,
+          expiresAt,
         })
         .returning();
 
       return {
         purchase: purchase as Purchase,
-        invoiceUrl: invoice.invoice_url,
+        checkoutUrl: transaction.checkout_url ?? failureUrl,
+        payCode: transaction.pay_code ?? null,
+        reference: transaction.reference ?? null,
       };
     } catch (error) {
-      console.error('Create purchase error:', error);
+      console.error("Create purchase error:", error);
       throw error;
     }
   }
 
-  /**
-   * Get purchase by transaction ID
-   */
   async getPurchaseByTransactionId(transactionId: string): Promise<Purchase | null> {
     try {
       const [purchase] = await db
@@ -129,16 +154,28 @@ export class PaymentService {
         .where(eq(purchases.transactionId, transactionId))
         .limit(1);
 
-      return purchase as Purchase | null;
+      return (purchase as Purchase) ?? null;
     } catch (error) {
-      console.error('Get purchase error:', error);
+      console.error("Get purchase error:", error);
       throw error;
     }
   }
 
-  /**
-   * Get user purchases
-   */
+  async getPurchaseByPaymentReference(reference: string): Promise<Purchase | null> {
+    try {
+      const [purchase] = await db
+        .select()
+        .from(purchases)
+        .where(eq(purchases.paymentReference, reference))
+        .limit(1);
+
+      return (purchase as Purchase) ?? null;
+    } catch (error) {
+      console.error("Get purchase by reference error:", error);
+      throw error;
+    }
+  }
+
   async getUserPurchases(buyerId: string): Promise<Purchase[]> {
     try {
       const userPurchases = await db
@@ -149,44 +186,41 @@ export class PaymentService {
 
       return userPurchases as Purchase[];
     } catch (error) {
-      console.error('Get user purchases error:', error);
+      console.error("Get user purchases error:", error);
       throw error;
     }
   }
 
-  /**
-   * Update purchase status from webhook
-   */
-  async updatePurchaseStatus(params: {
-    xenditInvoiceId: string;
-    status: 'paid' | 'expired';
-    paymentMethod?: string;
-    paidAt?: Date;
-  }): Promise<Purchase> {
+  async updatePurchaseFromTripay(transaction: TripayTransaction): Promise<Purchase> {
     try {
+      const status = tripayService.mapTripayStatus(transaction.status);
+
       const [purchase] = await db
         .select()
         .from(purchases)
-        .where(eq(purchases.xenditInvoiceId, params.xenditInvoiceId))
+        .where(eq(purchases.paymentReference, transaction.reference))
         .limit(1);
 
       if (!purchase) {
-        throw new Error('Purchase not found');
+        throw new Error("Purchase not found for reference");
       }
 
-      // Update purchase status
       const [updatedPurchase] = await db
         .update(purchases)
         .set({
-          paymentStatus: params.status,
-          paymentMethod: params.paymentMethod || purchase.paymentMethod,
-          paidAt: params.paidAt || null,
+          paymentStatus: status,
+          paymentMethod: transaction.payment_method ?? purchase.paymentMethod,
+          totalAmount: transaction.total_amount ?? purchase.totalAmount,
+          paymentCheckoutUrl: transaction.checkout_url ?? purchase.paymentCheckoutUrl,
+          paymentCode: transaction.pay_code ?? purchase.paymentCode,
+          paymentNote: transaction.note ?? purchase.paymentNote,
+          paidAt: transaction.paid_time ? new Date(transaction.paid_time * 1000) : purchase.paidAt,
+          expiresAt: transaction.expired_time ? new Date(transaction.expired_time * 1000) : purchase.expiresAt,
         })
         .where(eq(purchases.id, purchase.id))
         .returning();
 
-      // If paid, mark photo as sold
-      if (params.status === 'paid') {
+      if (status === "paid") {
         await db
           .update(photos)
           .set({ sold: true })
@@ -195,14 +229,11 @@ export class PaymentService {
 
       return updatedPurchase as Purchase;
     } catch (error) {
-      console.error('Update purchase status error:', error);
+      console.error("Update purchase status error:", error);
       throw error;
     }
   }
 
-  /**
-   * Check if user has access to photo
-   */
   async hasAccessToPhoto(buyerId: string, photoId: string): Promise<boolean> {
     try {
       const [purchase] = await db
@@ -212,14 +243,14 @@ export class PaymentService {
           and(
             eq(purchases.buyerId, buyerId),
             eq(purchases.photoId, photoId),
-            eq(purchases.paymentStatus, 'paid')
+            eq(purchases.paymentStatus, "paid")
           )
         )
         .limit(1);
 
       return !!purchase;
     } catch (error) {
-      console.error('Check photo access error:', error);
+      console.error("Check photo access error:", error);
       return false;
     }
   }

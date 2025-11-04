@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     console.log(`Resizing image from ${metadata.width}x${metadata.height} to ${newWidth}x${newHeight} (${quality}%)`);
 
     // Resize the image with lower quality for preview
-    let imageBuffer = await sharp(buffer)
+    const imageBuffer = await sharp(buffer)
       .resize(newWidth, newHeight, {
         fit: 'inside',
         withoutEnlargement: true,

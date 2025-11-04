@@ -84,15 +84,18 @@ export const purchases = pgTable('purchases', {
     .notNull()
     .references(() => photos.id, { onDelete: 'cascade' }),
   amount: integer('amount').notNull(),
+  totalAmount: integer('total_amount'),
   paymentMethod: text('payment_method'),
-  paymentStatus: text('payment_status', { 
-    enum: ['pending', 'paid', 'expired', 'failed'] 
+  paymentStatus: text('payment_status', {
+    enum: ['pending', 'paid', 'expired', 'failed'],
   }).default('pending').notNull(),
-  transactionId: text('transaction_id').unique(), // External ID for tracking
-  xenditInvoiceId: text('xendit_invoice_id').unique(), // Xendit invoice ID
-  xenditInvoiceUrl: text('xendit_invoice_url'), // Payment URL
+  transactionId: text('transaction_id').unique(), // Merchant reference
+  paymentReference: text('payment_reference').unique(), // Tripay reference
+  paymentCheckoutUrl: text('payment_checkout_url'),
+  paymentCode: text('payment_code'),
+  paymentNote: text('payment_note'),
   paidAt: timestamp('paid_at', { withTimezone: true }), // When payment was completed
-  expiresAt: timestamp('expires_at', { withTimezone: true }), // Invoice expiry
+  expiresAt: timestamp('expires_at', { withTimezone: true }), // Payment expiry
   purchasedAt: timestamp('purchased_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => {
   return {
@@ -100,7 +103,7 @@ export const purchases = pgTable('purchases', {
     photoIdx: index('idx_purchases_photo').on(table.photoId),
     statusIdx: index('idx_purchases_status').on(table.paymentStatus),
     transactionIdx: index('idx_purchases_transaction').on(table.transactionId),
-    xenditInvoiceIdx: index('idx_purchases_xendit_invoice').on(table.xenditInvoiceId),
+    paymentReferenceIdx: index('idx_purchases_payment_reference').on(table.paymentReference),
     uniqueBuyerPhoto: uniqueIndex('unique_buyer_photo').on(table.buyerId, table.photoId),
   };
 });

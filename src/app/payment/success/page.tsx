@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, Download, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function PaymentSuccessPage() {
-  const router = useRouter();
+function PaymentSuccessContent() {
   const searchParams = useSearchParams();
-  const transactionId = searchParams.get("transaction_id");
+  const merchantRef = searchParams.get("merchant_ref") || searchParams.get("transaction_id");
+  const reference = searchParams.get("reference");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -49,11 +49,20 @@ export default function PaymentSuccessPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {transactionId && (
+          {merchantRef && (
             <div className="p-4 bg-slate-50 rounded-lg">
-              <p className="text-xs text-slate-500 mb-1">Transaction ID</p>
+              <p className="text-xs text-slate-500 mb-1">Merchant Reference</p>
               <p className="text-sm font-mono font-semibold text-slate-900 break-all">
-                {transactionId}
+                {merchantRef}
+              </p>
+            </div>
+          )}
+
+          {reference && (
+            <div className="p-4 bg-slate-50 rounded-lg">
+              <p className="text-xs text-slate-500 mb-1">Tripay Reference</p>
+              <p className="text-sm font-mono font-semibold text-slate-900 break-all">
+                {reference}
               </p>
             </div>
           )}
@@ -89,5 +98,20 @@ export default function PaymentSuccessPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#48CAE4]/10 to-[#00B4D8]/10">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-[#48CAE4] animate-spin mx-auto mb-4" />
+          <p className="text-slate-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }

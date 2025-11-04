@@ -58,7 +58,7 @@ export class PurchaseService {
         if (data.transactionId) {
           await tx
             .update(purchases)
-            .set({ paymentStatus: 'success' })
+            .set({ paymentStatus: 'paid' })
             .where(eq(purchases.id, purchase.id));
 
           await tx
@@ -160,7 +160,7 @@ export class PurchaseService {
    */
   async updatePaymentStatus(
     purchaseId: string,
-    status: 'pending' | 'success' | 'failed'
+    status: 'pending' | 'paid' | 'failed' | 'expired'
   ) {
     try {
       return await db.transaction(async (tx) => {
@@ -172,7 +172,7 @@ export class PurchaseService {
           .returning();
 
         // If payment successful, mark photo as sold
-        if (status === 'success') {
+        if (status === 'paid') {
           await tx
             .update(photos)
             .set({ sold: true })
@@ -225,7 +225,7 @@ export class PurchaseService {
           and(
             eq(purchases.buyerId, userId),
             eq(purchases.photoId, photoId),
-            eq(purchases.paymentStatus, 'success')
+            eq(purchases.paymentStatus, 'paid')
           )
         )
         .limit(1);
@@ -249,7 +249,7 @@ export class PurchaseService {
         })
         .from(purchases)
         .leftJoin(photos, eq(purchases.photoId, photos.id))
-        .where(eq(purchases.paymentStatus, 'success'))
+        .where(eq(purchases.paymentStatus, 'paid'))
         .$dynamic();
 
       if (photographerId) {
