@@ -45,7 +45,7 @@
 | ADM-006 | feature/admin-notifications | Admin | Add notifications for new sales and payout reminders via email/in-app. | ADM-005 | Pending |
 | USR-001 | feature/user-discovery | User | Implement seller search by account name with result ranking and empty-state guidance. | ADM-003 | Pending |
 | USR-002 | feature/user-gallery | User | Build buyer gallery experience with watermarked previews and responsive layout. | USR-001 | Pending |
-| USR-003 | feature/user-cart | User | Implement cart supporting multi-photo selections, pricing summary, and validation. | USR-002 | Pending |
+| USR-003 | feature/user-cart | User | Implement cart supporting multi-photo selections, pricing summary, and validation. | USR-002 | **Complete** |
 | USR-004 | feature/user-checkout | User | Integrate payment gateway checkout flow with order creation and error handling. | USR-003 | Pending |
 | USR-005 | feature/user-library | User | Create "My Gallery" with secure signed URL downloads and purchase history. | USR-004, CORE-001 | Pending |
 | USR-006 | feature/user-notifications | User | Send purchase confirmation and download instructions to buyers. | USR-004 | Pending |

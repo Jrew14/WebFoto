@@ -156,11 +156,11 @@ export default function AdminSettingsPage() {
                 type="text"
                 value={tripayMerchantCode}
                 onChange={(e) => setTripayMerchantCode(e.target.value)}
-                placeholder="T46723 (sandbox) or 46723 (production)"
+                placeholder="e.g., T46723"
                 className="font-mono"
               />
               <p className="text-sm text-gray-500">
-                Sandbox codes start with "T", production codes are numeric
+                Your merchant code from Tripay dashboard (e.g., T46723)
               </p>
             </div>
 
@@ -195,9 +195,10 @@ export default function AdminSettingsPage() {
               <h4 className="font-semibold text-blue-900 mb-2">How to get Tripay Credentials:</h4>
               <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
                 <li>Go to <a href="https://tripay.co.id" target="_blank" rel="noopener noreferrer" className="underline">tripay.co.id</a></li>
-                <li>Login to your merchant account</li>
-                <li>For Sandbox: Go to <a href="https://tripay.co.id/simulator/merchant" target="_blank" rel="noopener noreferrer" className="underline">Simulator</a></li>
-                <li>Copy Merchant Code, API Key, and Private Key</li>
+                <li>Login to your merchant dashboard</li>
+                <li>Go to Settings → API Credentials</li>
+                <li>Copy Merchant Code (e.g., T46723)</li>
+                <li>Copy API Key and Private Key</li>
                 <li>Paste them above and click Save</li>
               </ol>
             </div>
@@ -207,12 +208,10 @@ export default function AdminSettingsPage() {
               <div className="flex gap-2">
                 <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
                 <div className="text-sm text-amber-800">
-                  <p className="font-semibold mb-1">Important:</p>
-                  <p>Make sure to use matching credentials:</p>
-                  <ul className="list-disc list-inside mt-1 space-y-0.5">
-                    <li>Sandbox Mode → Sandbox credentials (T-prefix merchant code)</li>
-                    <li>Production Mode → Production credentials (numeric merchant code)</li>
-                  </ul>
+                  <p className="font-semibold mb-1">Production Mode:</p>
+                  <p>T46723 is a production merchant code. Set mode to <strong>Production</strong> to use the production API endpoint.</p>
+                  <p className="mt-2">After saving, restart the dev server:</p>
+                  <code className="block mt-1 bg-amber-100 px-2 py-1 rounded">bun dev</code>
                 </div>
               </div>
             </div>
