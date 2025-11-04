@@ -39,6 +39,7 @@ export async function GET() {
         tripayPrivateKey: process.env.TRIPAY_PRIVATE_KEY || "",
         tripayMerchantCode: process.env.TRIPAY_MERCHANT_CODE || "",
         tripayMode: process.env.TRIPAY_MODE || "sandbox",
+        appUrl: process.env.NEXT_PUBLIC_APP_URL || "",
       },
     });
   } catch (error) {
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { fonnteToken, tripayApiKey, tripayPrivateKey, tripayMerchantCode, tripayMode } = body;
+    const { fonnteToken, tripayApiKey, tripayPrivateKey, tripayMerchantCode, tripayMode, appUrl } = body;
 
     // Read current .env.local file
     let envContent = "";
@@ -114,6 +115,8 @@ export async function POST(request: Request) {
     updateEnvVar("TRIPAY_PRIVATE_KEY", tripayPrivateKey);
     updateEnvVar("TRIPAY_MERCHANT_CODE", tripayMerchantCode);
     updateEnvVar("TRIPAY_MODE", tripayMode);
+    updateEnvVar("NEXT_PUBLIC_APP_URL", appUrl);
+    updateEnvVar("NEXT_PUBLIC_SITE_URL", appUrl); // Keep in sync
 
     // Rebuild .env.local content
     const newEnvLines: string[] = [

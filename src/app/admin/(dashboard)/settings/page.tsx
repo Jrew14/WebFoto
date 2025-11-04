@@ -14,6 +14,7 @@ export default function AdminSettingsPage() {
   const [tripayPrivateKey, setTripayPrivateKey] = useState("");
   const [tripayMerchantCode, setTripayMerchantCode] = useState("");
   const [tripayMode, setTripayMode] = useState("sandbox");
+  const [appUrl, setAppUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -34,6 +35,7 @@ export default function AdminSettingsPage() {
         setTripayPrivateKey(data.settings?.tripayPrivateKey || "");
         setTripayMerchantCode(data.settings?.tripayMerchantCode || "");
         setTripayMode(data.settings?.tripayMode || "sandbox");
+        setAppUrl(data.settings?.appUrl || "");
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
@@ -56,6 +58,7 @@ export default function AdminSettingsPage() {
           tripayPrivateKey: tripayPrivateKey.trim(),
           tripayMerchantCode: tripayMerchantCode.trim(),
           tripayMode: tripayMode,
+          appUrl: appUrl.trim(),
         }),
       });
 
@@ -131,6 +134,22 @@ export default function AdminSettingsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* App URL */}
+            <div className="space-y-2">
+              <Label htmlFor="appUrl">Application URL</Label>
+              <Input
+                id="appUrl"
+                type="url"
+                value={appUrl}
+                onChange={(e) => setAppUrl(e.target.value)}
+                placeholder="http://localhost:3000 or https://yourdomain.com"
+                className="font-mono"
+              />
+              <p className="text-sm text-gray-500">
+                Your application URL for payment callbacks and webhooks
+              </p>
+            </div>
+
             {/* Tripay Mode */}
             <div className="space-y-2">
               <Label htmlFor="tripayMode">Environment Mode</Label>
