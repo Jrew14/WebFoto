@@ -84,8 +84,8 @@ export class PaymentService {
 
       const transactionId = `TXN-${Date.now()}-${nanoid(8)}`;
 
-      const returnUrl = `${APP_URL}/payment/success?merchant_ref=${transactionId}`;
-      const failureUrl = `${APP_URL}/payment/failed?merchant_ref=${transactionId}`;
+      // Return URL untuk redirect user setelah pembayaran
+      const returnUrl = `${APP_URL}/api/payment/callback?merchant_ref=${transactionId}`;
 
       const transaction = await tripayService.createTransaction({
         method: paymentMethod,
@@ -136,7 +136,7 @@ export class PaymentService {
 
       return {
         purchase: purchase as Purchase,
-        checkoutUrl: transaction.checkout_url ?? failureUrl,
+        checkoutUrl: transaction.checkout_url ?? null,
         payCode: transaction.pay_code ?? null,
         reference: transaction.reference ?? null,
       };
