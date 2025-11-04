@@ -11,6 +11,7 @@ export * from './photo.service';
 export * from './purchase.service';
 export * from './bookmark.service';
 export * from './profile.service';
+export * from './cart.service';
 
 // Re-export singleton instances for convenience
 export { authService } from './auth.service';
@@ -19,3 +20,4 @@ export { photoService } from './photo.service';
 export { purchaseService } from './purchase.service';
 export { bookmarkService } from './bookmark.service';
 export { profileService } from './profile.service';
+export { cartService } from './cart.service';

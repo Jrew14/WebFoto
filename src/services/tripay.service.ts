@@ -3,11 +3,11 @@ import crypto from "crypto";
 const API_KEY = process.env.TRIPAY_API_KEY;
 const PRIVATE_KEY = process.env.TRIPAY_PRIVATE_KEY;
 const MERCHANT_CODE = process.env.TRIPAY_MERCHANT_CODE;
-const MODE = process.env.TRIPAY_MODE ?? "production"; // Default to production
+const MODE = process.env.TRIPAY_MODE ?? "sandbox"; // Default to sandbox for safety
 
 if (!API_KEY || !PRIVATE_KEY || !MERCHANT_CODE) {
   console.warn(
-    "Tripay environment variables are not fully set. Please check TRIPAY_API_KEY, TRIPAY_PRIVATE_KEY, and TRIPAY_MERCHANT_CODE."
+    "⚠️  Tripay environment variables are not fully set. Please check TRIPAY_API_KEY, TRIPAY_PRIVATE_KEY, and TRIPAY_MERCHANT_CODE in admin settings."
   );
 }
 
@@ -118,19 +118,30 @@ class TripayService {
   }
 
   async getPaymentChannels(): Promise<TripayChannel[]> {
-    const data = await this.request<{ data: TripayChannel[] | undefined } & TripayChannel[]>(
-      "/merchant/payment-channel"
-    );
-
-    if (Array.isArray(data)) {
-      return data;
+    // Check if credentials are configured
+    if (!API_KEY || !PRIVATE_KEY || !MERCHANT_CODE) {
+      console.error("[Tripay] Credentials not configured");
+      throw new Error("Tripay credentials not configured. Please configure in admin settings.");
     }
 
-    if (Array.isArray((data as Record<string, unknown>)?.data)) {
-      return (data as Record<string, unknown>).data as TripayChannel[];
-    }
+    try {
+      const data = await this.request<{ data: TripayChannel[] | undefined } & TripayChannel[]>(
+        "/merchant/payment-channel"
+      );
 
-    return [];
+      if (Array.isArray(data)) {
+        return data;
+      }
+
+      if (Array.isArray((data as Record<string, unknown>)?.data)) {
+        return (data as Record<string, unknown>).data as TripayChannel[];
+      }
+
+      return [];
+    } catch (error) {
+      console.error("[Tripay] Failed to get payment channels:", error);
+      throw error;
+    }
   }
 
   async createTransaction(params: CreateTripayTransactionParams): Promise<TripayTransaction> {

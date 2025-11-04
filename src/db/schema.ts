@@ -145,6 +145,7 @@ export const profilesRelations = relations(profiles, ({ many }) => ({
   photos: many(photos),
   purchases: many(purchases),
   bookmarks: many(bookmarks),
+  cartItems: many(cartItems),
 }));
 
 export const eventsRelations = relations(events, ({ one, many }) => ({
@@ -166,6 +167,7 @@ export const photosRelations = relations(photos, ({ one, many }) => ({
   }),
   purchases: many(purchases),
   bookmarks: many(bookmarks),
+  cartItems: many(cartItems),
 }));
 
 export const purchasesRelations = relations(purchases, ({ one }) => ({
@@ -226,6 +228,27 @@ export const manualPaymentMethods = pgTable('manual_payment_methods', {
   };
 });
 
+// =====================================================
+// CART ITEMS TABLE
+// =====================================================
+
+export const cartItems = pgTable('cart_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => profiles.id, { onDelete: 'cascade' }),
+  photoId: uuid('photo_id')
+    .notNull()
+    .references(() => photos.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdx: index('idx_cart_items_user').on(table.userId),
+    photoIdx: index('idx_cart_items_photo').on(table.photoId),
+    uniqueUserPhoto: uniqueIndex('unique_cart_user_photo').on(table.userId, table.photoId),
+  };
+});
+
 export type Photo = typeof photos.$inferSelect;
 export type NewPhoto = typeof photos.$inferInsert;
 
@@ -237,3 +260,21 @@ export type NewBookmark = typeof bookmarks.$inferInsert;
 
 export type ManualPaymentMethod = typeof manualPaymentMethods.$inferSelect;
 export type NewManualPaymentMethod = typeof manualPaymentMethods.$inferInsert;
+
+export type CartItem = typeof cartItems.$inferSelect;
+export type NewCartItem = typeof cartItems.$inferInsert;
+
+// =====================================================
+// CART ITEMS RELATIONS
+// =====================================================
+
+export const cartItemsRelations = relations(cartItems, ({ one }) => ({
+  user: one(profiles, {
+    fields: [cartItems.userId],
+    references: [profiles.id],
+  }),
+  photo: one(photos, {
+    fields: [cartItems.photoId],
+    references: [photos.id],
+  }),
+}));

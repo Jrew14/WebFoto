@@ -256,7 +256,20 @@ export default function ShopPage() {
         }
       } catch (error) {
         console.error("Failed to load payment channels:", error);
-        const message = error instanceof Error ? error.message : "Failed to load payment channels";
+        let message = "Failed to load payment channels";
+        
+        if (error instanceof Error) {
+          if (error.message.includes("credentials not configured")) {
+            message = "Payment gateway not configured. Please contact administrator.";
+          } else if (error.message.includes("Invalid API Key")) {
+            message = "Payment gateway configuration error. Please contact administrator.";
+          } else if (error.message.includes("Sandbox API but with Production credential")) {
+            message = "Payment gateway mode mismatch. Please contact administrator.";
+          } else {
+            message = error.message;
+          }
+        }
+        
         setChannelError(message);
       } finally {
         setLoadingChannels(false);
