@@ -88,25 +88,60 @@ export class PaymentService {
       // Return URL untuk redirect user setelah pembayaran
       const returnUrl = `${APP_URL}/api/payment/callback?merchant_ref=${transactionId}`;
 
-      const transaction = await tripayService.createTransaction({
-        method: paymentMethod,
-        merchantRef: transactionId,
-        amount: photo.price,
-        customerName: params.buyerName || params.buyerEmail.split("@")[0] || "Customer",
-        customerEmail: params.buyerEmail,
-        customerPhone: params.buyerPhone ?? null,
-        items: [
-          {
-            name: photo.name,
-            quantity: 1,
-            price: photo.price,
-            url: photo.previewUrl,
-            description: photo.eventId ? `Event ${photo.eventId}` : undefined,
-          },
-        ],
-        callbackUrl: CALLBACK_URL,
-        returnUrl,
-      });
+      // Try Tripay, fallback to manual payment if Cloudflare blocks
+      let transaction;
+      try {
+        transaction = await tripayService.createTransaction({
+          method: paymentMethod,
+          merchantRef: transactionId,
+          amount: photo.price,
+          customerName: params.buyerName || params.buyerEmail.split("@")[0] || "Customer",
+          customerEmail: params.buyerEmail,
+          customerPhone: params.buyerPhone ?? null,
+          items: [
+            {
+              name: photo.name,
+              quantity: 1,
+              price: photo.price,
+              url: photo.previewUrl,
+              description: photo.eventId ? `Event ${photo.eventId}` : undefined,
+            },
+          ],
+          callbackUrl: CALLBACK_URL,
+          returnUrl,
+        });
+      } catch (tripayError) {
+        console.error("[Payment] Tripay API failed, falling back to manual payment:", tripayError);
+        
+        // Fallback: Create manual payment transaction
+        const manualTransactionId = `MANUAL-${Date.now()}-${nanoid(8)}`;
+        
+        const [manualPurchase] = await db
+          .insert(purchases)
+          .values({
+            buyerId: params.buyerId,
+            photoId: params.photoId,
+            amount: photo.price,
+            totalAmount: photo.price,
+            paymentStatus: "pending",
+            paymentMethod: "manual_transfer",
+            paymentType: "manual",
+            transactionId: manualTransactionId,
+            paymentReference: null,
+            paymentCheckoutUrl: null,
+            paymentCode: null,
+            paymentNote: "Please transfer to the bank account provided",
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+          })
+          .returning();
+
+        return {
+          purchase: manualPurchase,
+          checkoutUrl: `${APP_URL}/payment/manual-pending?transactionId=${manualTransactionId}`,
+          payCode: null,
+          reference: null,
+        };
+      }
 
       const expiresAt = transaction.expired_time
         ? new Date(transaction.expired_time * 1000)
