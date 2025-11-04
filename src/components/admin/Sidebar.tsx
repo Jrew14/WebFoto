@@ -14,6 +14,7 @@ import {
   ChevronUp,
   CreditCard,
   ShoppingBag,
+  Settings,
 } from "lucide-react";
 import {
   Sidebar,
@@ -72,6 +73,11 @@ const menuItems = [
     title: "Users",
     href: "/admin/users",
     icon: Users,
+  },
+  {
+    title: "Settings",
+    href: "/admin/settings",
+    icon: Settings,
   },
   {
     title: "Profile Admin",

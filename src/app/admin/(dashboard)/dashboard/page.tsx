@@ -51,6 +51,7 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
+  const [showConfigAlert, setShowConfigAlert] = useState(false);
   const [stats, setStats] = useState({
     totalPhotos: 0,
     soldPhotos: 0,
@@ -67,6 +68,29 @@ export default function DashboardPage() {
       // Auto hide after 5 seconds
       setTimeout(() => setShowInfo(false), 5000);
     }
+
+    // Check if Tripay or Fonnte is not configured
+    const checkConfiguration = async () => {
+      try {
+        const response = await fetch("/api/admin/settings");
+        if (response.ok) {
+          const data = await response.json();
+          const settings = data.settings;
+          
+          // Check if essential settings are missing
+          const isTripayConfigured = settings.tripayApiKey && settings.tripayPrivateKey && settings.tripayMerchantCode;
+          const isFonnteConfigured = settings.fonnteToken;
+          
+          if (!isTripayConfigured || !isFonnteConfigured) {
+            setShowConfigAlert(true);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check configuration:", error);
+      }
+    };
+
+    checkConfiguration();
   }, [searchParams]);
 
   useEffect(() => {
@@ -131,6 +155,33 @@ export default function DashboardPage() {
 
   return (
     <div className="p-8">
+      {/* Configuration Alert */}
+      {showConfigAlert && (
+        <div className="mb-6 rounded-lg bg-amber-50 p-4 border border-amber-200 flex items-start gap-3">
+          <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-amber-900 mb-1">
+              ⚠️ Konfigurasi Diperlukan
+            </h3>
+            <p className="text-sm text-amber-800 mb-2">
+              Tripay atau Fonnte belum dikonfigurasi. Silakan lengkapi konfigurasi untuk mengaktifkan payment gateway dan notifikasi WhatsApp.
+            </p>
+            <a
+              href="/admin/settings"
+              className="inline-flex items-center text-sm font-medium text-amber-900 hover:text-amber-700 underline"
+            >
+              Buka Settings →
+            </a>
+          </div>
+          <button
+            onClick={() => setShowConfigAlert(false)}
+            className="text-amber-600 hover:text-amber-800"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Info Message */}
       {showInfo && (
         <div className="mb-6 rounded-lg bg-blue-50 p-4 border border-blue-200 flex items-start gap-3">
