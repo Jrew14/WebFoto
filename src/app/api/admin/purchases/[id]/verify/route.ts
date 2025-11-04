@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db";
-import { purchases, profiles } from "@/db/schema";
+import { purchases, profiles, photos } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { fonnteService } from "@/services/fonnte.service";
 
 export async function PATCH(
   request: NextRequest,
@@ -75,6 +76,38 @@ export async function PATCH(
         verifiedAt: now,
       })
       .where(eq(purchases.id, id));
+
+    // Send WhatsApp notification if approved
+    if (action === "approve") {
+      // Get buyer and photo details
+      const [buyer] = await db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.id, purchase[0].buyerId))
+        .limit(1);
+
+      const [photo] = await db
+        .select()
+        .from(photos)
+        .where(eq(photos.id, purchase[0].photoId))
+        .limit(1);
+
+      if (buyer?.phone && photo) {
+        const formattedPhone = fonnteService.formatPhoneNumber(buyer.phone);
+        const downloadUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://piksel-jual.vercel.app"}/gallery`;
+        
+        fonnteService.sendPaymentApproved({
+          customerName: buyer.fullName,
+          customerPhone: formattedPhone,
+          photoName: photo.name,
+          amount: purchase[0].amount,
+          transactionId: purchase[0].transactionId || `MANUAL-${id.substring(0, 8)}`,
+          downloadUrl: downloadUrl,
+        }).catch(error => {
+          console.error("Failed to send approval WhatsApp notification:", error);
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,

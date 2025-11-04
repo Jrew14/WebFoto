@@ -1,8 +1,9 @@
 import { db } from "@/db";
-import { purchases, photos } from "@/db/schema";
+import { purchases, photos, profiles } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { tripayService, TripayTransaction } from "./tripay.service";
+import { fonnteService } from "./fonnte.service";
 
 export interface CreatePurchaseParams {
   buyerId: string;
@@ -124,6 +125,7 @@ export class PaymentService {
           totalAmount: transaction.total_amount ?? transaction.amount,
           paymentStatus: tripayService.mapTripayStatus(transaction.status),
           paymentMethod,
+          paymentType: "automatic",
           transactionId,
           paymentReference: transaction.reference,
           paymentCheckoutUrl: transaction.checkout_url,
@@ -133,6 +135,29 @@ export class PaymentService {
           expiresAt,
         })
         .returning();
+
+      // Send WhatsApp notification (async, don't wait)
+      const [buyer] = await db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.id, params.buyerId))
+        .limit(1);
+
+      if (buyer?.phone && transaction.checkout_url && expiresAt) {
+        const formattedPhone = fonnteService.formatPhoneNumber(buyer.phone);
+        fonnteService.sendAutomaticPaymentInvoice({
+          customerName: buyer.fullName,
+          customerPhone: formattedPhone,
+          photoName: photo.name,
+          amount: transaction.total_amount ?? transaction.amount,
+          paymentMethod: transaction.payment_name,
+          checkoutUrl: transaction.checkout_url,
+          transactionId: transactionId,
+          expiresAt: expiresAt,
+        }).catch(error => {
+          console.error("Failed to send automatic payment WhatsApp notification:", error);
+        });
+      }
 
       return {
         purchase: purchase as Purchase,

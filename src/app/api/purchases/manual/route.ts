@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db";
-import { purchases, photos, profiles } from "@/db/schema";
+import { purchases, photos, profiles, manualPaymentMethods } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { fonnteService } from "@/services/fonnte.service";
 
 export async function POST(request: Request) {
   try {
@@ -44,16 +45,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if user already purchased this photo
+    // Check if user already purchased this photo with paid status
     const existingPurchases = await db
       .select()
       .from(purchases)
       .where(eq(purchases.buyerId, user.id))
       .limit(100);
     
-    const existingPurchase = existingPurchases.find(p => p.photoId === photoId);
+    const existingPaidPurchase = existingPurchases.find(
+      p => p.photoId === photoId && p.paymentStatus === "paid"
+    );
 
-    if (existingPurchase) {
+    if (existingPaidPurchase) {
       return NextResponse.json(
         { error: "You have already purchased this photo" },
         { status: 400 }
@@ -66,6 +69,27 @@ export async function POST(request: Request) {
       .from(profiles)
       .where(eq(profiles.id, user.id))
       .limit(1);
+
+    if (!buyer) {
+      return NextResponse.json(
+        { error: "Buyer profile not found" },
+        { status: 404 }
+      );
+    }
+
+    // Get payment method details
+    const [paymentMethod] = await db
+      .select()
+      .from(manualPaymentMethods)
+      .where(eq(manualPaymentMethods.id, manualPaymentMethodId))
+      .limit(1);
+
+    if (!paymentMethod) {
+      return NextResponse.json(
+        { error: "Payment method not found" },
+        { status: 404 }
+      );
+    }
 
     // Create manual payment purchase
     const transactionId = `MANUAL-${Date.now()}-${nanoid(8)}`;
@@ -89,6 +113,24 @@ export async function POST(request: Request) {
         expiresAt: expiresAt,
       })
       .returning();
+
+    // Send WhatsApp notification (async, don't wait)
+    if (buyer.phone) {
+      const formattedPhone = fonnteService.formatPhoneNumber(buyer.phone);
+      fonnteService.sendManualPaymentInvoice({
+        customerName: buyer.fullName,
+        customerPhone: formattedPhone,
+        photoName: photo.name,
+        amount: photo.price,
+        paymentMethod: paymentMethod.name,
+        accountNumber: paymentMethod.accountNumber,
+        accountName: paymentMethod.accountName,
+        transactionId: transactionId,
+        expiresAt: expiresAt,
+      }).catch(error => {
+        console.error("Failed to send WhatsApp notification:", error);
+      });
+    }
 
     return NextResponse.json({
       success: true,

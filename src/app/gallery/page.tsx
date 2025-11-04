@@ -98,6 +98,7 @@ export default function GalleryPage() {
     isBookmarked: boolean;
     purchaseDate?: Date;
     bookmarkDate?: Date;
+    paymentStatus?: "pending" | "paid" | "expired" | "failed";
   };
 
   const allPhotos: CombinedPhoto[] = [
@@ -109,6 +110,7 @@ export default function GalleryPage() {
       isPurchased: true,
       isBookmarked: bookmarkIds.has(purchase.photoId),
       purchaseDate: purchase.purchasedAt,
+      paymentStatus: purchase.paymentStatus,
     })),
     ...bookmarkedPhotos
       .filter((bookmark) => 
@@ -344,10 +346,10 @@ export default function GalleryPage() {
                     >
                       <div 
                       className="relative overflow-hidden rounded-lg bg-slate-100 shadow-md hover:shadow-xl transition-all duration-300"
-                      onClick={() => item.isPurchased && handleViewPhoto(item)}
+                      onClick={() => (item.isPurchased && item.paymentStatus === "paid") && handleViewPhoto(item)}
                     >
                         <img
-                          src={item.isPurchased ? photo.fullUrl : photo.previewUrl}
+                          src={(item.isPurchased && item.paymentStatus === "paid") ? photo.fullUrl : photo.previewUrl}
                           alt={photo.name}
                           className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
                           loading="lazy"
@@ -371,11 +373,19 @@ export default function GalleryPage() {
                           </button>
                         </div>
 
-                        {item.isPurchased && (
+                        {item.isPurchased && item.paymentStatus === "paid" && (
                           <div className="absolute top-3 left-3 z-10">
                             <Badge className="bg-green-600 shadow-lg">
                               <CheckCircle className="w-3 h-3 mr-1" />
                               Full Quality
+                            </Badge>
+                          </div>
+                        )}
+                        {item.isPurchased && item.paymentStatus === "pending" && (
+                          <div className="absolute top-3 left-3 z-10">
+                            <Badge className="bg-amber-500 shadow-lg">
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              Pending Approval
                             </Badge>
                           </div>
                         )}
@@ -396,7 +406,7 @@ export default function GalleryPage() {
                                   </p>
                                 )}
                               </div>
-                              {item.isPurchased ? (
+                              {item.isPurchased && item.paymentStatus === "paid" ? (
                                 <div className="flex gap-2">
                                   <Button
                                     size="sm"
@@ -422,6 +432,15 @@ export default function GalleryPage() {
                                     Download
                                   </Button>
                                 </div>
+                              ) : item.isPurchased && item.paymentStatus === "pending" ? (
+                                <Button
+                                  size="sm"
+                                  disabled
+                                  className="bg-amber-500/80 text-white shadow-lg cursor-not-allowed"
+                                >
+                                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                  Awaiting Approval
+                                </Button>
                               ) : (
                                 <Button
                                   asChild
