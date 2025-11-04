@@ -63,9 +63,34 @@ function ManualPaymentInstructionsContent() {
     }
   };
 
-  const handleConfirmPayment = () => {
-    // TODO: Create manual payment purchase record
-    router.push("/payment/manual-pending");
+  const handleConfirmPayment = async () => {
+    if (!selectedMethod || !photoId) return;
+
+    try {
+      setUploadingProof(true);
+
+      const response = await fetch("/api/purchases/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          photoId: photoId,
+          manualPaymentMethodId: selectedMethod.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create purchase");
+      }
+
+      // Redirect to pending page with transaction ID
+      router.push(`/payment/manual-pending?transactionId=${data.purchase.transactionId}`);
+    } catch (error) {
+      console.error("Failed to create manual purchase:", error);
+      alert(error instanceof Error ? error.message : "Failed to create purchase");
+      setUploadingProof(false);
+    }
   };
 
   if (loading) {

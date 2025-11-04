@@ -78,7 +78,7 @@ function PaymentPendingContent() {
               </Button>
 
               <Button asChild variant="outline" className="w-full">
-                <Link href="/user/home">Lihat Pesanan Saya</Link>
+                <Link href="/gallery">Lihat Pesanan Saya</Link>
               </Button>
             </div>
           </div>

@@ -86,7 +86,7 @@ export default function ManualPaymentPendingPage() {
               </Button>
 
               <Button asChild variant="outline" className="w-full">
-                <Link href="/user/home">Check My Orders</Link>
+                <Link href="/gallery">Check My Orders</Link>
               </Button>
             </div>
 

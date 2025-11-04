@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bookmark, ShoppingBag, ImageIcon, Filter, Download, Loader2 } from "lucide-react";
+import { Bookmark, ShoppingBag, ImageIcon, Filter, Download, Loader2, Eye, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -179,33 +180,38 @@ export default function GalleryPage() {
     }
   };
 
-  const handleDownload = async (photoId: string, name: string) => {
+  const handleDownload = async (photoId: string, photoName: string) => {
     try {
-      // Request secure download URL from API
       const response = await fetch(`/api/photos/download?photoId=${photoId}`);
       
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to get download URL');
+        throw new Error("Failed to download photo");
       }
 
-      const { downloadUrl } = await response.json();
-
-      // Download the file
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = name;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error: any) {
-      console.error("Failed to download photo:", error);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = photoName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Download error:", error);
       showAlert(
         'Download Failed',
-        error.message || 'Failed to download photo. Please try again.'
+        'Failed to download photo. Please try again.'
       );
     }
+  };
+
+  const [selectedPhoto, setSelectedPhoto] = useState<CombinedPhoto | null>(null);
+  const [photoViewOpen, setPhotoViewOpen] = useState(false);
+
+  const handleViewPhoto = (photo: CombinedPhoto) => {
+    setSelectedPhoto(photo);
+    setPhotoViewOpen(true);
   };
 
   if (authLoading || loading) {
@@ -336,9 +342,12 @@ export default function GalleryPage() {
                       key={item.id} 
                       className="break-inside-avoid mb-4 group cursor-pointer"
                     >
-                      <div className="relative overflow-hidden rounded-lg bg-slate-100 shadow-md hover:shadow-xl transition-all duration-300">
+                      <div 
+                      className="relative overflow-hidden rounded-lg bg-slate-100 shadow-md hover:shadow-xl transition-all duration-300"
+                      onClick={() => item.isPurchased && handleViewPhoto(item)}
+                    >
                         <img
-                          src={photo.previewUrl}
+                          src={item.isPurchased ? photo.fullUrl : photo.previewUrl}
                           alt={photo.name}
                           className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
                           loading="lazy"
@@ -364,10 +373,10 @@ export default function GalleryPage() {
 
                         {item.isPurchased && (
                           <div className="absolute top-3 left-3 z-10">
-                            <div className="px-3 py-1.5 rounded-full bg-[#48CAE4] text-white text-xs font-semibold shadow-lg flex items-center gap-1">
-                              <ShoppingBag className="w-3 h-3" />
-                              Purchased
-                            </div>
+                            <Badge className="bg-green-600 shadow-lg">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Full Quality
+                            </Badge>
                           </div>
                         )}
                         
@@ -388,17 +397,31 @@ export default function GalleryPage() {
                                 )}
                               </div>
                               {item.isPurchased ? (
-                                <Button
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDownload(item.photoId, photo.name);
-                                  }}
-                                  className="bg-white hover:bg-slate-100 text-[#3AAFCE] shadow-lg"
-                                >
-                                  <Download className="w-4 h-4 mr-1" />
-                                  Download
-                                </Button>
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleViewPhoto(item);
+                                    }}
+                                    className="bg-white/90 hover:bg-white text-[#3AAFCE] shadow-lg"
+                                  >
+                                    <Eye className="w-4 h-4 mr-1" />
+                                    View
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDownload(item.photoId, photo.name);
+                                    }}
+                                    className="bg-[#48CAE4] hover:bg-[#3AAFCE] text-white shadow-lg"
+                                  >
+                                    <Download className="w-4 h-4 mr-1" />
+                                    Download
+                                  </Button>
+                                </div>
                               ) : (
                                 <Button
                                   asChild
@@ -446,6 +469,40 @@ export default function GalleryPage() {
           </div>
         </div>
       </section>
+
+      {/* Photo View Dialog */}
+      <Dialog open={photoViewOpen} onOpenChange={setPhotoViewOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] p-0">
+          <DialogTitle className="sr-only">
+            {selectedPhoto?.photo?.name || "Photo Preview"}
+          </DialogTitle>
+          {selectedPhoto?.photo && (
+            <div className="relative">
+              <img
+                src={selectedPhoto.photo.fullUrl}
+                alt={selectedPhoto.photo.name}
+                className="w-full h-auto max-h-[85vh] object-contain"
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                <h3 className="text-white font-semibold text-lg mb-2">
+                  {selectedPhoto.photo.name}
+                </h3>
+                <Button
+                  onClick={() => {
+                    if (selectedPhoto.photo) {
+                      handleDownload(selectedPhoto.photoId, selectedPhoto.photo.name);
+                    }
+                  }}
+                  className="bg-[#48CAE4] hover:bg-[#3AAFCE] text-white"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Full Quality
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Alert Dialog */}
       <Dialog open={alertDialog.open} onOpenChange={(open) => setAlertDialog({ ...alertDialog, open })}>

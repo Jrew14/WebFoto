@@ -3,7 +3,7 @@ import crypto from "crypto";
 const API_KEY = process.env.TRIPAY_API_KEY;
 const PRIVATE_KEY = process.env.TRIPAY_PRIVATE_KEY;
 const MERCHANT_CODE = process.env.TRIPAY_MERCHANT_CODE;
-const MODE = process.env.TRIPAY_MODE ?? "development";
+const MODE = process.env.TRIPAY_MODE ?? "production"; // Default to production
 
 if (!API_KEY || !PRIVATE_KEY || !MERCHANT_CODE) {
   console.warn(
@@ -11,9 +11,26 @@ if (!API_KEY || !PRIVATE_KEY || !MERCHANT_CODE) {
   );
 }
 
-const BASE_URL = MODE === "production"
-  ? "https://tripay.co.id/api"
-  : "https://tripay.co.id/api-sandbox";
+// Automatically detect Tripay mode based on environment or merchant code
+// Priority: TRIPAY_MODE env var > merchant code pattern
+// Sandbox codes typically start with "T" (e.g., T12345)
+// Production codes are typically numeric (e.g., 12345)
+let isSandbox = false;
+
+if (MODE.toLowerCase() === "sandbox") {
+  isSandbox = true;
+} else if (MODE.toLowerCase() === "production") {
+  isSandbox = false;
+} else {
+  // Auto-detect from merchant code if mode not explicitly set
+  isSandbox = MERCHANT_CODE?.startsWith("T") ?? false;
+}
+
+const BASE_URL = isSandbox
+  ? "https://tripay.co.id/api-sandbox"
+  : "https://tripay.co.id/api";
+
+console.log(`[Tripay] Using ${isSandbox ? "SANDBOX" : "PRODUCTION"} mode with merchant code: ${MERCHANT_CODE}`);
 
 interface TripayRequestOptions {
   method?: "GET" | "POST";

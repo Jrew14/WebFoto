@@ -86,6 +86,9 @@ export const purchases = pgTable('purchases', {
   amount: integer('amount').notNull(),
   totalAmount: integer('total_amount'),
   paymentMethod: text('payment_method'),
+  paymentType: text('payment_type', {
+    enum: ['manual', 'automatic'],
+  }).default('automatic'),
   paymentStatus: text('payment_status', {
     enum: ['pending', 'paid', 'expired', 'failed'],
   }).default('pending').notNull(),
@@ -94,6 +97,10 @@ export const purchases = pgTable('purchases', {
   paymentCheckoutUrl: text('payment_checkout_url'),
   paymentCode: text('payment_code'),
   paymentNote: text('payment_note'),
+  paymentProofUrl: text('payment_proof_url'), // Manual payment proof
+  manualPaymentMethodId: uuid('manual_payment_method_id').references(() => manualPaymentMethods.id),
+  verifiedBy: uuid('verified_by').references(() => profiles.id), // Admin who verified
+  verifiedAt: timestamp('verified_at', { withTimezone: true }), // When admin verified
   paidAt: timestamp('paid_at', { withTimezone: true }), // When payment was completed
   expiresAt: timestamp('expires_at', { withTimezone: true }), // Payment expiry
   purchasedAt: timestamp('purchased_at', { withTimezone: true }).defaultNow().notNull(),

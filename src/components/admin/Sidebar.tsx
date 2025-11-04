@@ -7,11 +7,13 @@ import {
   Upload,
   Images,
   User,
+  Users,
   LogOut,
   FolderOpen,
   Camera,
   ChevronUp,
   CreditCard,
+  ShoppingBag,
 } from "lucide-react";
 import {
   Sidebar,
@@ -60,6 +62,16 @@ const menuItems = [
     title: "Payment Methods",
     href: "/admin/payment-methods",
     icon: CreditCard,
+  },
+  {
+    title: "Purchase Orders",
+    href: "/admin/purchases",
+    icon: ShoppingBag,
+  },
+  {
+    title: "Users",
+    href: "/admin/users",
+    icon: Users,
   },
   {
     title: "Profile Admin",
