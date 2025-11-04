@@ -112,6 +112,8 @@ export default function ShopPage() {
 
   const [buyDialog, setBuyDialog] = useState(false);
   const [selectedPhotoForBuy, setSelectedPhotoForBuy] = useState<PhotoWithRelations | null>(null);
+  const [paymentTypeDialog, setPaymentTypeDialog] = useState(false);
+  const [selectedPaymentType, setSelectedPaymentType] = useState<"manual" | "automatic" | null>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [paymentChannels, setPaymentChannels] = useState<TripayChannel[]>([]);
   const [selectedPaymentChannel, setSelectedPaymentChannel] = useState<string>("");
@@ -141,8 +143,15 @@ export default function ShopPage() {
       return;
     }
     
-    // Open buy dialog for authenticated users
+    // Open payment type selection dialog
     setSelectedPhotoForBuy(photo);
+    setPaymentTypeDialog(true);
+  };
+
+  // Handle payment type selection
+  const handlePaymentTypeSelection = (type: "manual" | "automatic") => {
+    setSelectedPaymentType(type);
+    setPaymentTypeDialog(false);
     setBuyDialog(true);
   };
 
@@ -150,19 +159,30 @@ export default function ShopPage() {
   const handleProceedToPayment = async () => {
     if (!selectedPhotoForBuy) return;
 
-    if (!selectedPaymentChannel) {
-      showAlert('Select Payment Method', 'Please choose a payment channel before continuing.');
-      return;
-    }
+    // Validate automatic payment
+    if (selectedPaymentType === "automatic") {
+      if (!selectedPaymentChannel) {
+        showAlert('Select Payment Method', 'Please choose a payment channel before continuing.');
+        return;
+      }
 
-    if (channelError) {
-      showAlert('Payment Unavailable', channelError);
-      return;
+      if (channelError) {
+        showAlert('Payment Unavailable', channelError);
+        return;
+      }
     }
 
     try {
       setProcessingPayment(true);
 
+      if (selectedPaymentType === "manual") {
+        // TODO: Create manual payment purchase
+        // For now, redirect to manual payment page
+        router.push(`/payment/manual-instructions?photoId=${selectedPhotoForBuy.id}`);
+        return;
+      }
+
+      // Automatic payment with Tripay
       const response = await fetch('/api/purchases/create', {
         method: 'POST',
         headers: {
@@ -573,6 +593,89 @@ export default function ShopPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Payment Type Selection Dialog */}
+      <Dialog open={paymentTypeDialog} onOpenChange={setPaymentTypeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Choose Payment Method</DialogTitle>
+            <DialogDescription>
+              Select how you would like to pay for this photo
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedPhotoForBuy && (
+            <div className="space-y-4">
+              {/* Photo Preview */}
+              <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-100">
+                <img
+                  src={selectedPhotoForBuy.previewUrl}
+                  alt={selectedPhotoForBuy.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              {/* Price */}
+              <div className="flex justify-between items-center py-3 px-4 bg-slate-50 rounded-lg">
+                <span className="text-sm text-slate-600">Total Price</span>
+                <span className="text-lg font-bold text-[#48CAE4]">
+                  Rp {selectedPhotoForBuy.price.toLocaleString('id-ID')}
+                </span>
+              </div>
+
+              {/* Payment Type Options */}
+              <div className="space-y-3">
+                <button
+                  onClick={() => handlePaymentTypeSelection("automatic")}
+                  className="w-full p-4 border-2 border-slate-200 hover:border-[#48CAE4] rounded-lg transition-all group"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 bg-[#48CAE4]/10 group-hover:bg-[#48CAE4]/20 rounded-lg flex items-center justify-center shrink-0">
+                      <svg className="w-6 h-6 text-[#48CAE4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <div className="text-left flex-1">
+                      <h4 className="font-semibold text-slate-900 mb-1">Automatic Payment</h4>
+                      <p className="text-sm text-slate-600">
+                        Fast checkout with Tripay - Bank Transfer, E-Wallet, QRIS
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handlePaymentTypeSelection("manual")}
+                  className="w-full p-4 border-2 border-slate-200 hover:border-[#48CAE4] rounded-lg transition-all group"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 bg-[#48CAE4]/10 group-hover:bg-[#48CAE4]/20 rounded-lg flex items-center justify-center shrink-0">
+                      <svg className="w-6 h-6 text-[#48CAE4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                    </div>
+                    <div className="text-left flex-1">
+                      <h4 className="font-semibold text-slate-900 mb-1">Manual Transfer</h4>
+                      <p className="text-sm text-slate-600">
+                        Pay via manual bank transfer with custom instructions
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPaymentTypeDialog(false)}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Buy Dialog */}
       <Dialog open={buyDialog} onOpenChange={setBuyDialog}>
         <DialogContent className="sm:max-w-md">
@@ -621,38 +724,58 @@ export default function ShopPage() {
                   Payment Channel
                 </Label>
 
-                {loadingChannels ? (
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Loading payment options...
-                  </div>
-                ) : paymentChannels.length > 0 ? (
-                  <Select
-                    value={selectedPaymentChannel}
-                    onValueChange={setSelectedPaymentChannel}
-                    disabled={processingPayment}
-                  >
-                    <SelectTrigger id="payment-channel">
-                      <SelectValue placeholder="Select a payment channel" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {paymentChannels.map((channel) => (
-                        <SelectItem key={channel.code} value={channel.code}>
-                          {channel.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-sm text-red-500">
-                    No payment channels available. Please try again later.
-                  </p>
-                )}
+                {selectedPaymentType === "automatic" ? (
+                  <>
+                    {loadingChannels ? (
+                      <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading payment options...
+                      </div>
+                    ) : paymentChannels.length > 0 ? (
+                      <Select
+                        value={selectedPaymentChannel}
+                        onValueChange={setSelectedPaymentChannel}
+                        disabled={processingPayment}
+                      >
+                        <SelectTrigger id="payment-channel">
+                          <SelectValue placeholder="Select a payment channel" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {paymentChannels.map((channel) => (
+                            <SelectItem key={channel.code} value={channel.code}>
+                              {channel.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm text-red-500">
+                        No payment channels available. Please try again later.
+                        <br />
+                        Tripay request failed: Invalid API Key
+                      </p>
+                    )}
 
-                {channelError && (
-                  <p className="text-sm text-red-500">
-                    {channelError}
-                  </p>
+                    {channelError && (
+                      <p className="text-sm text-red-500">
+                        {channelError}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="text-sm">
+                        <p className="font-medium text-amber-900 mb-1">Manual Transfer Selected</p>
+                        <p className="text-amber-700">
+                          You will receive payment instructions after confirming your order. Please complete the transfer within 24 hours.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -669,7 +792,10 @@ export default function ShopPage() {
             <Button
               className="bg-[#48CAE4] hover:bg-[#3AAFCE]"
               onClick={handleProceedToPayment}
-              disabled={processingPayment || loadingChannels || !selectedPaymentChannel || !!channelError}
+              disabled={
+                processingPayment || 
+                (selectedPaymentType === "automatic" && (loadingChannels || !selectedPaymentChannel || !!channelError))
+              }
             >
               {processingPayment ? (
                 <>
