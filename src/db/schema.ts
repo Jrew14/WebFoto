@@ -193,6 +193,32 @@ export type NewProfile = typeof profiles.$inferInsert;
 export type Event = typeof events.$inferSelect;
 export type NewEvent = typeof events.$inferInsert;
 
+// =====================================================
+// MANUAL PAYMENT METHODS TABLE
+// =====================================================
+
+export const manualPaymentMethods = pgTable('manual_payment_methods', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(), // e.g., "BCA", "BNI", "DANA"
+  type: text('type', { enum: ['bank_transfer', 'e_wallet', 'other'] }).notNull().default('bank_transfer'),
+  accountNumber: text('account_number').notNull(), // Account number or wallet number
+  accountName: text('account_name').notNull(), // Account holder name
+  minAmount: integer('min_amount').notNull().default(10000),
+  maxAmount: integer('max_amount').notNull().default(20000000),
+  fee: integer('fee').notNull().default(0), // Fixed fee
+  feePercentage: integer('fee_percentage').notNull().default(0), // Percentage fee (in basis points, e.g., 100 = 1%)
+  isActive: boolean('is_active').notNull().default(true),
+  sortOrder: integer('sort_order').notNull().default(0),
+  instructions: text('instructions'), // Payment instructions for users
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    activeIdx: index('idx_manual_payment_active').on(table.isActive),
+    sortIdx: index('idx_manual_payment_sort').on(table.sortOrder),
+  };
+});
+
 export type Photo = typeof photos.$inferSelect;
 export type NewPhoto = typeof photos.$inferInsert;
 
@@ -201,3 +227,6 @@ export type NewPurchase = typeof purchases.$inferInsert;
 
 export type Bookmark = typeof bookmarks.$inferSelect;
 export type NewBookmark = typeof bookmarks.$inferInsert;
+
+export type ManualPaymentMethod = typeof manualPaymentMethods.$inferSelect;
+export type NewManualPaymentMethod = typeof manualPaymentMethods.$inferInsert;

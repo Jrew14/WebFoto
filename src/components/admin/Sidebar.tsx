@@ -11,6 +11,7 @@ import {
   FolderOpen,
   Camera,
   ChevronUp,
+  CreditCard,
 } from "lucide-react";
 import {
   Sidebar,
@@ -54,6 +55,11 @@ const menuItems = [
     title: "Gallery Foto",
     href: "/admin/gallery",
     icon: Images,
+  },
+  {
+    title: "Payment Methods",
+    href: "/admin/payment-methods",
+    icon: CreditCard,
   },
   {
     title: "Profile Admin",
