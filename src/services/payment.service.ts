@@ -67,20 +67,40 @@ export class PaymentService {
         throw new Error("Photo already sold");
       }
 
+      // Check if already purchased (paid) or has pending payment
       const [existingPurchase] = await db
         .select()
         .from(purchases)
         .where(
           and(
             eq(purchases.buyerId, params.buyerId),
-            eq(purchases.photoId, params.photoId),
-            eq(purchases.paymentStatus, "paid")
+            eq(purchases.photoId, params.photoId)
           )
         )
         .limit(1);
 
       if (existingPurchase) {
-        throw new Error("You have already purchased this photo");
+        if (existingPurchase.paymentStatus === "paid") {
+          throw new Error("You have already purchased this photo");
+        }
+        
+        // If pending or expired, return existing transaction
+        if (existingPurchase.paymentStatus === "pending") {
+          return {
+            purchase: existingPurchase,
+            checkoutUrl: existingPurchase.paymentCheckoutUrl || 
+              `${APP_URL}/payment/manual-pending?transactionId=${existingPurchase.transactionId}`,
+            payCode: existingPurchase.paymentCode,
+            reference: existingPurchase.paymentReference,
+          };
+        }
+        
+        // If failed or expired, allow retry by deleting old record
+        if (existingPurchase.paymentStatus === "failed" || existingPurchase.paymentStatus === "expired") {
+          await db
+            .delete(purchases)
+            .where(eq(purchases.id, existingPurchase.id));
+        }
       }
 
       const transactionId = `TXN-${Date.now()}-${nanoid(8)}`;
