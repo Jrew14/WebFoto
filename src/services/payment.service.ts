@@ -131,6 +131,7 @@ export class PaymentService {
             paymentCheckoutUrl: null,
             paymentCode: null,
             paymentNote: "Please transfer to the bank account provided",
+            paidAt: null, // Not paid yet
             expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
           })
           .returning();
