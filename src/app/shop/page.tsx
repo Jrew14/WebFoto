@@ -762,11 +762,22 @@ export default function ShopPage() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <p className="text-sm text-red-500">
-                        No payment channels available. Please try again later.
-                        <br />
-                        Tripay request failed: Invalid API Key
-                      </p>
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <svg className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="text-sm">
+                            <p className="font-medium text-blue-900 mb-1">Automatic Payment Temporarily Unavailable</p>
+                            <p className="text-blue-700 mb-2">
+                              Our payment gateway is currently being set up. Don't worry, you can still complete your purchase!
+                            </p>
+                            <p className="text-blue-700">
+                              ✓ Select "Manual Transfer" below to proceed with bank transfer
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     )}
 
                     {channelError && (
