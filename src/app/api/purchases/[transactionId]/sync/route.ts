@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db";
 import { purchases, photos } from "@/db/schema";
@@ -8,7 +8,7 @@ import { tripayService } from "@/services/tripay.service";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ transactionId: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -20,12 +20,12 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { transactionId } = await params;
 
     const [purchase] = await db
       .select()
       .from(purchases)
-      .where(eq(purchases.id, id))
+      .where(eq(purchases.id, transactionId))
       .limit(1);
 
     if (!purchase || purchase.buyerId !== user.id) {
