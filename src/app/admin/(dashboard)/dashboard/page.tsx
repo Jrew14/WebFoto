@@ -32,7 +32,8 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-const formatMonth = (value: string) => {
+const formatMonth = (value: string | null | undefined) => {
+  if (!value || typeof value !== 'string') return 'N/A';
   const [year, month] = value.split("-");
   const date = new Date(Number(year), Number(month) - 1);
   return date.toLocaleDateString("id-ID", {
