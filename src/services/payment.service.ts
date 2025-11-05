@@ -223,7 +223,9 @@ export class PaymentService {
           lowerMessage.includes("network") ||
           lowerMessage.includes("timeout") ||
           lowerMessage.includes("socket hang up") ||
-          lowerMessage.includes("getaddrinfo");
+          lowerMessage.includes("getaddrinfo") ||
+          lowerMessage.includes("unauthorized ip") ||
+          lowerMessage.includes("whitelist ip");
 
         if (!isConnectivityIssue) {
           throw tripayError instanceof Error

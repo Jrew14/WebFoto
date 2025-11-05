@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -27,6 +27,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   CreditCard,
   Camera,
 } from "lucide-react";
@@ -60,6 +61,7 @@ export default function CartPage() {
   const [error, setError] = useState<string | null>(null);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [channelWarning, setChannelWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -90,20 +92,34 @@ export default function CartPage() {
 
   const loadChannels = async () => {
     try {
+      setChannelWarning(null);
+
       const response = await fetch("/api/payment/channels");
-      if (!response.ok) return;
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to load payment channels");
+      }
+
       const list: TripayChannel[] = Array.isArray(data.channels)
         ? data.channels
         : Array.isArray(data?.data)
         ? data.data
         : [];
+
       setChannels(list);
-      if (list.length > 0) {
-        setSelectedChannel(list[0].code);
-      }
+      setChannelWarning(typeof data.warning === "string" ? data.warning : null);
+
+      setSelectedChannel((current) => {
+        if (current && list.some((channel) => channel.code === current)) {
+          return current;
+        }
+        return list[0]?.code ?? "";
+      });
     } catch (error) {
       console.warn("[Cart] failed to load payment channels", error);
+      setChannels([]);
+      setSelectedChannel("");
     }
   };
 
@@ -268,6 +284,13 @@ export default function CartPage() {
               <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>{checkoutMessage}</span>
+              </div>
+            )}
+
+            {channelWarning && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                <AlertCircle className="w-4 h-4 mt-0.5" />
+                <span>{channelWarning}</span>
               </div>
             )}
 

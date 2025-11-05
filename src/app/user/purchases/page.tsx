@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,7 +57,7 @@ interface Purchase {
   } | null;
 }
 
-export default function UserPurchasesPage() {
+function PurchasesContent() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -137,8 +137,13 @@ export default function UserPurchasesPage() {
 
   const handlePayNow = async (purchase: Purchase) => {
     try {
+      if (!purchase.transactionId) {
+        window.alert("Transaksi ini tidak memiliki referensi pembayaran. Silakan buat pesanan baru atau gunakan metode manual.");
+        return;
+      }
+
       const response = await fetch(
-        `/api/purchases/${purchase.id}/sync`,
+        `/api/purchases/${encodeURIComponent(purchase.transactionId)}/sync`,
         { method: "PATCH" }
       );
 
@@ -516,3 +521,14 @@ export default function UserPurchasesPage() {
   );
 }
 
+export default function UserPurchasesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#48CAE4]" />
+      </div>
+    }>
+      <PurchasesContent />
+    </Suspense>
+  );
+}

@@ -1,4 +1,4 @@
-import crypto from "crypto";
+﻿import crypto from "crypto";
 
 const API_KEY = process.env.TRIPAY_API_KEY;
 const PRIVATE_KEY = process.env.TRIPAY_PRIVATE_KEY;
@@ -7,7 +7,7 @@ const MODE = process.env.TRIPAY_MODE ?? "production"; // Default to production
 
 if (!API_KEY || !PRIVATE_KEY || !MERCHANT_CODE) {
   console.warn(
-    "âš ï¸  Tripay environment variables are not fully set. Please check TRIPAY_API_KEY, TRIPAY_PRIVATE_KEY, and TRIPAY_MERCHANT_CODE in admin settings."
+    "Ã¢Å¡Â Ã¯Â¸Â  Tripay environment variables are not fully set. Please check TRIPAY_API_KEY, TRIPAY_PRIVATE_KEY, and TRIPAY_MERCHANT_CODE in admin settings."
   );
 }
 
@@ -137,6 +137,8 @@ class TripayService {
       throw new Error("Tripay credentials not configured. Please configure in admin settings.");
     }
 
+    this.fallbackReason = null;
+
     try {
       const data = await this.request<{ data: TripayChannel[] | undefined } & TripayChannel[]>(
         "/merchant/payment-channel"
@@ -182,6 +184,8 @@ class TripayService {
     } else {
       console.warn("[Tripay] Using fallback payment channels (development mode).");
     }
+
+    this.fallbackReason = reason;
 
     return [
       {
@@ -287,6 +291,11 @@ class TripayService {
     ];
   }
 
+  public popFallbackReason(): "cloudflare" | "unauthorized_ip" | "development" | null {
+    const reason = this.fallbackReason;
+    this.fallbackReason = null;
+    return reason;
+  }
   async createTransaction(params: CreateTripayTransactionParams): Promise<TripayTransaction> {
     if (!MERCHANT_CODE || !PRIVATE_KEY) {
       throw new Error("Tripay credential is not configured");
@@ -397,3 +406,5 @@ class TripayService {
 }
 
 export const tripayService = new TripayService();
+
+

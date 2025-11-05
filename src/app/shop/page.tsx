@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, X, ShoppingCart, ImageIcon, Bookmark, Loader2, ClipboardList, CreditCard } from "lucide-react";
+import { Search, X, ShoppingCart, ImageIcon, Bookmark, Loader2, ClipboardList, CreditCard, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -394,6 +394,7 @@ export default function ShopPage() {
       try {
         setLoadingChannels(true);
         setChannelError(null);
+        setChannelWarning(null);
 
         const response = await fetch("/api/payment/channels");
         const result = await response.json();
@@ -409,13 +410,20 @@ export default function ShopPage() {
             : [];
 
         setPaymentChannels(channels);
+        setChannelWarning(typeof result?.warning === "string" ? result.warning : null);
 
-        if (channels.length) {
-          const defaultCode = channels.find((channel) => channel.code === defaultPaymentMethod)?.code
-            ?? channels[0].code;
+        setSelectedPaymentChannel((current) => {
+          if (current && channels.some((channel) => channel.code === current)) {
+            return current;
+          }
 
-          setSelectedPaymentChannel((current) => current || defaultCode);
-        }
+          const defaultCode =
+            channels.find((channel) => channel.code === defaultPaymentMethod)?.code ??
+            channels[0]?.code ??
+            "";
+
+          return defaultCode;
+        });
       } catch (error) {
         console.error("Failed to load payment channels:", error);
         let message = "Failed to load payment channels";
@@ -603,6 +611,15 @@ export default function ShopPage() {
           </div>
         </div>
       </section>
+
+      {channelWarning && (
+        <div className="container mx-auto px-4 mt-4">
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <AlertCircle className="h-4 w-4 mt-0.5" />
+            <span>{channelWarning}</span>
+          </div>
+        </div>
+      )}
 
       {/* Filter Section */}
       <section className="bg-white border-b sticky top-16 z-40 shadow-sm">
@@ -1056,6 +1073,13 @@ export default function ShopPage() {
                       <p className="text-sm text-red-500">
                         {channelError}
                       </p>
+                    )}
+
+                    {channelWarning && !channelError && (
+                      <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span>{channelWarning}</span>
+                      </div>
                     )}
                   </>
                 ) : (

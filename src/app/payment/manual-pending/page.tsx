@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -54,7 +54,7 @@ interface PurchaseDetail {
   manualPaymentMethod: ManualPaymentMethod | null;
 }
 
-export default function ManualPaymentPendingPage() {
+function ManualPaymentPendingContent() {
   const searchParams = useSearchParams();
   const transactionId = searchParams.get("transactionId");
 
@@ -458,5 +458,17 @@ export default function ManualPaymentPendingPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function ManualPaymentPendingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#48CAE4]" />
+      </div>
+    }>
+      <ManualPaymentPendingContent />
+    </Suspense>
   );
 }

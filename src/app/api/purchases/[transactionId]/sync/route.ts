@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db";
 import { purchases, photos } from "@/db/schema";
@@ -25,7 +25,7 @@ export async function PATCH(
     const [purchase] = await db
       .select()
       .from(purchases)
-      .where(eq(purchases.id, transactionId))
+      .where(eq(purchases.transactionId, transactionId))
       .limit(1);
 
     if (!purchase || purchase.buyerId !== user.id) {
@@ -62,9 +62,22 @@ export async function PATCH(
     });
   } catch (error) {
     console.error("[Purchase Sync] error:", error);
-    return NextResponse.json(
-      { error: "Failed to refresh purchase status" },
-      { status: 500 }
-    );
+    let message = "Failed to refresh purchase status";
+
+    if (error instanceof Error) {
+      const lower = error.message.toLowerCase();
+      if (lower.includes("unauthorized ip") || lower.includes("whitelist ip")) {
+        message =
+          "Tripay menolak IP server ini. Mohon hubungi administrator untuk menambahkan IP backend ke whitelist atau lanjutkan dengan pembayaran manual.";
+      } else if (lower.includes("cloudflare")) {
+        message =
+          "Tripay tidak dapat dihubungi karena pembatasan Cloudflare. Silakan coba lagi beberapa saat atau gunakan pembayaran manual.";
+      } else {
+        message = error.message;
+      }
+    }
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
