@@ -20,12 +20,14 @@ export default function SignUpPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    phone: "",
     password: "",
     confirmPassword: "",
   });
   const [errors, setErrors] = useState({
     name: "",
     email: "",
+    phone: "",
     password: "",
     confirmPassword: "",
     general: "",
@@ -49,12 +51,14 @@ export default function SignUpPage() {
     const newErrors = {
       name: "",
       email: "",
+      phone: "",
       password: "",
       confirmPassword: "",
       general: "",
     };
 
     let hasError = false;
+    let normalizedPhone = "";
 
     // Validation
     if (!formData.name.trim()) {
@@ -68,6 +72,25 @@ export default function SignUpPage() {
     } else if (!validateEmail(formData.email)) {
       newErrors.email = "Please enter a valid email address";
       hasError = true;
+    }
+
+    const phoneValue = formData.phone.trim();
+    if (!phoneValue) {
+      newErrors.phone = "Nomor WhatsApp wajib diisi";
+      hasError = true;
+    } else {
+      const digits = phoneValue.replace(/\D/g, "");
+      if (digits.length < 9 || digits.length > 15) {
+        newErrors.phone = "Masukkan nomor WhatsApp yang valid";
+        hasError = true;
+      } else if (!(digits.startsWith("62") || digits.startsWith("0"))) {
+        newErrors.phone = "Gunakan format +62 atau 0 di awal nomor";
+        hasError = true;
+      } else {
+        normalizedPhone = digits.startsWith("62")
+          ? `+${digits}`
+          : `+62${digits.slice(1)}`;
+      }
     }
 
     if (!formData.password) {
@@ -92,13 +115,14 @@ export default function SignUpPage() {
     }
 
     setIsLoading(true);
-    setErrors({ name: "", email: "", password: "", confirmPassword: "", general: "" });
+    setErrors({ name: "", email: "", phone: "", password: "", confirmPassword: "", general: "" });
 
     try {
       const { user, error } = await authService.signUp({
         email: formData.email,
         password: formData.password,
         fullName: formData.name,
+        phone: normalizedPhone,
       });
 
       if (error) {
@@ -134,7 +158,7 @@ export default function SignUpPage() {
 
   const handleGoogleSignUp = async () => {
     setIsLoading(true);
-    setErrors({ name: "", email: "", password: "", confirmPassword: "", general: "" });
+    setErrors({ name: "", email: "", phone: "", password: "", confirmPassword: "", general: "" });
     
     try {
       const { error } = await authService.signInWithGoogle();
@@ -287,17 +311,46 @@ export default function SignUpPage() {
                     className={`pl-9 h-9 text-sm ${errors.email ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                     disabled={isLoading}
                   />
-                </div>
-                {errors.email && (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-red-500" />
-                    {errors.email}
-                  </p>
-                )}
               </div>
+              {errors.email && (
+                <p className="text-xs text-red-500 flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-red-500" />
+                  {errors.email}
+                </p>
+              )}
+            </div>
 
-              {/* Password Field */}
-              <div className="space-y-1.5">
+            {/* WhatsApp Field */}
+            <div className="space-y-1.5">
+              <Label htmlFor="phone" className="text-sm">Nomor WhatsApp</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="Contoh: 0852-8722-9898"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className={`pl-9 h-9 text-sm ${errors.phone ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+                  disabled={isLoading}
+                />
+              </div>
+              {errors.phone && (
+                <p className="text-xs text-red-500 flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-red-500" />
+                  {errors.phone}
+                </p>
+              )}
+              <p className="text-[11px] text-slate-500">
+                Kami akan mengirimkan invoice ke nomor WhatsApp ini.
+              </p>
+            </div>
+
+            {/* Password Field */}
+            <div className="space-y-1.5">
                 <Label htmlFor="password" className="text-sm">Password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db";
-import { purchases, photos, events, profiles } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { purchases, photos, events, profiles, purchaseLogs } from "@/db/schema";
+import { eq, desc, inArray } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,6 +62,45 @@ export async function GET(request: NextRequest) {
       .leftJoin(events, eq(photos.eventId, events.id))
       .orderBy(desc(purchases.purchasedAt));
 
+    const purchaseIds = allPurchases
+      .map((p) => p.id)
+      .filter((id): id is string => Boolean(id));
+
+    const logsByPurchase = new Map<
+      string,
+      Array<{ id: string; action: string; note: string | null; createdAt: Date }>
+    >();
+
+    if (purchaseIds.length > 0) {
+      try {
+        const purchaseLogsData = await db
+          .select({
+            id: purchaseLogs.id,
+            purchaseId: purchaseLogs.purchaseId,
+            action: purchaseLogs.action,
+            note: purchaseLogs.note,
+            createdAt: purchaseLogs.createdAt,
+          })
+          .from(purchaseLogs)
+          .where(inArray(purchaseLogs.purchaseId, purchaseIds))
+          .orderBy(desc(purchaseLogs.createdAt));
+
+        purchaseLogsData.forEach((log) => {
+          if (!log.purchaseId) return;
+          const arr = logsByPurchase.get(log.purchaseId) ?? [];
+          arr.push({
+            id: log.id,
+            action: log.action,
+            note: log.note,
+            createdAt: log.createdAt,
+          });
+          logsByPurchase.set(log.purchaseId, arr);
+        });
+      } catch (error) {
+        console.warn("[Admin Purchases] purchaseLogs lookup skipped:", error);
+      }
+    }
+
     // Get verifier info separately for purchases that have been verified
     const purchasesWithVerifier = await Promise.all(
       allPurchases.map(async (p) => {
@@ -82,21 +121,20 @@ export async function GET(request: NextRequest) {
           ...p,
           verifier,
           buyer: p.buyer || { id: "", fullName: "Unknown", email: "" },
-          photo: p.photo
-            ? {
-                ...p.photo,
-                event: p.event || null,
-              }
-            : null,
+          photo: {
+            id: p.photo?.id ?? "",
+            name: p.photo?.name ?? "Foto tidak tersedia",
+            previewUrl: p.photo?.previewUrl ?? "",
+            event: p.event || null,
+          },
+          logs: logsByPurchase.get(p.id) ?? [],
         };
       })
     );
 
-    const validPurchases = purchasesWithVerifier.filter((p) => p.photo !== null);
-
     return NextResponse.json({
       success: true,
-      purchases: validPurchases,
+      purchases: purchasesWithVerifier,
     });
   } catch (error) {
     console.error("Failed to fetch admin purchases:", error);

@@ -37,6 +37,11 @@ function SignInContent() {
         ...prev,
         general: "Admin accounts cannot login here. Please use the admin login page."
       }));
+    } else if (errorParam === "oauth_failed") {
+      setErrors(prev => ({
+        ...prev,
+        general: "Google login gagal. Pastikan domain callback di Supabase sudah memasukkan URL aplikasi ini."
+      }));
     }
   }, [searchParams]);
 

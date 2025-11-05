@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
-import { getProfileAction, updateProfileAction } from "@/actions";
+import { getProfileAction, updateProfileAction } from "@/actions/user.actions";
 import { createClient } from "@/lib/supabase/client";
 
 export default function ProfilePage() {

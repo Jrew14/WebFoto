@@ -32,7 +32,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getEventsAction, createEventAction, updateEventAction, deleteEventAction } from "@/actions";
+import {
+  getEventsAction,
+  createEventAction,
+  updateEventAction,
+  deleteEventAction,
+} from "@/actions/photo.actions";
 import { useAuth } from "@/hooks/useAuth";
 import type { Event as EventType } from "@/db/schema";
 

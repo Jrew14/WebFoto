@@ -16,7 +16,12 @@ import {
   FolderOpen,
   Loader2,
 } from "lucide-react";
-import { getPhotosAction, getEventsAction, updatePhotoAction, deletePhotoAction } from "@/actions";
+import {
+  getPhotosAction,
+  getEventsAction,
+  updatePhotoAction,
+  deletePhotoAction,
+} from "@/actions/photo.actions";
 import type { PhotoWithDetails } from "@/services/photo.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

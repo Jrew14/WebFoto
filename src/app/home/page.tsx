@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Camera, TrendingUp, Users, Image as ImageIcon, Mail, Phone, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -364,31 +365,41 @@ export default function HomePage() {
                   <Mail className="w-5 h-5 text-[#48CAE4]/100 mt-1" />
                   <div>
                     <p className="text-sm text-slate-400">Email</p>
-                    <p className="text-white">support@pikseljual.com</p>
+                    <p className="text-white">soramula@gmail.com</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <Phone className="w-5 h-5 text-[#48CAE4]/100 mt-1" />
                   <div>
                     <p className="text-sm text-slate-400">Phone</p>
-                    <p className="text-white">+62 812-3456-7890</p>
+                    <p className="text-white">+62 852-8722-9898</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-[#48CAE4]/100 mt-1" />
                   <div>
                     <p className="text-sm text-slate-400">Address</p>
-                    <p className="text-white">Jakarta, Indonesia</p>
+                    <p className="text-white">Cimahi, Indonesia</p>
                   </div>
                 </div>
+                <Link
+                  href="https://wa.me/6285287229898"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block pt-3"
+                >
+                  <Button className="bg-[#48CAE4] hover:bg-[#3AAFCE] text-white">
+                    Chat via WhatsApp
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>
 
           {/* Copyright */}
           <div className="border-t border-slate-800 mt-8 pt-8 text-center">
-            <p className="text-slate-500 text-sm">
-              © {new Date().getFullYear()} Soraroid. All rights reserved.
+            <p className="text-slate-500 text-sm uppercase tracking-wide">
+              2025 Soramula. All rights reserved.
             </p>
           </div>
         </div>
@@ -396,3 +407,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+

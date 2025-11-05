@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db";
 import { purchases, profiles, photos } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { fonnteService } from "@/services/fonnte.service";
+import { purchaseLogService } from "@/services/purchase-log.service";
 
 export async function PATCH(
   request: NextRequest,
@@ -76,6 +77,27 @@ export async function PATCH(
         verifiedAt: now,
       })
       .where(eq(purchases.id, id));
+
+    if (action === "approve") {
+      await db
+        .update(photos)
+        .set({ sold: true })
+        .where(eq(photos.id, purchase[0].photoId));
+    } else {
+      await db
+        .update(photos)
+        .set({ sold: false })
+        .where(eq(photos.id, purchase[0].photoId));
+    }
+
+    await purchaseLogService.log({
+      purchaseId: purchase[0].id,
+      action: action === "approve" ? "manual_approved" : "manual_rejected",
+      note:
+        action === "approve"
+          ? `Pembayaran manual disetujui oleh ${profile[0].fullName}.`
+          : `Pembayaran manual ditolak oleh ${profile[0].fullName}.`,
+    });
 
     // Send WhatsApp notification if approved
     if (action === "approve") {

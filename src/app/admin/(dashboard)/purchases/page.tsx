@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -37,6 +38,13 @@ import {
   Filter,
 } from "lucide-react";
 
+interface PurchaseLog {
+  id: string;
+  action: string;
+  note: string | null;
+  createdAt: string;
+}
+
 interface Purchase {
   id: string;
   transactionId: string;
@@ -65,6 +73,7 @@ interface Purchase {
   verifier: {
     fullName: string;
   } | null;
+  logs: PurchaseLog[];
 }
 
 export default function AdminPurchasesPage() {
@@ -73,6 +82,7 @@ export default function AdminPurchasesPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadPurchases();
@@ -81,14 +91,23 @@ export default function AdminPurchasesPage() {
   const loadPurchases = async () => {
     try {
       setLoading(true);
+      setErrorMessage(null);
       const response = await fetch("/api/admin/purchases");
       const data = await response.json();
 
       if (response.ok) {
-        setPurchases(data.purchases || []);
+        const items = (data.purchases || []).map((purchase: Purchase) => ({
+          ...purchase,
+          logs: purchase.logs || [],
+        }));
+        setPurchases(items);
+      } else {
+        setPurchases([]);
+        setErrorMessage(data?.error || "Failed to fetch purchases");
       }
     } catch (error) {
       console.error("Failed to load purchases:", error);
+      setErrorMessage("Failed to load purchases. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -188,6 +207,12 @@ export default function AdminPurchasesPage() {
             </p>
           </div>
         </div>
+
+        {errorMessage && (
+          <Alert variant="destructive">
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -303,11 +328,17 @@ export default function AdminPurchasesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <img
-                            src={purchase.photo.previewUrl}
-                            alt={purchase.photo.name}
-                            className="w-10 h-10 object-cover rounded"
-                          />
+                          {purchase.photo.previewUrl ? (
+                            <img
+                              src={purchase.photo.previewUrl}
+                              alt={purchase.photo.name}
+                              className="w-10 h-10 object-cover rounded"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded bg-slate-200 flex items-center justify-center text-[10px] text-slate-600">
+                              No Image
+                            </div>
+                          )}
                           <div className="text-sm">
                             <div className="font-medium truncate max-w-[150px]">
                               {purchase.photo.name}
@@ -361,11 +392,17 @@ export default function AdminPurchasesPage() {
             <div className="space-y-4">
               {/* Photo Preview */}
               <div className="aspect-video relative rounded-lg overflow-hidden">
-                <img
-                  src={selectedPurchase.photo.previewUrl}
-                  alt={selectedPurchase.photo.name}
-                  className="w-full h-full object-cover"
-                />
+                {selectedPurchase.photo.previewUrl ? (
+                  <img
+                    src={selectedPurchase.photo.previewUrl}
+                    alt={selectedPurchase.photo.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-600">
+                    Preview tidak tersedia
+                  </div>
+                )}
               </div>
 
               {/* Details */}
@@ -425,6 +462,30 @@ export default function AdminPurchasesPage() {
                   />
                 </div>
               )}
+
+              <div>
+                <span className="text-gray-600 text-sm">Riwayat Aktivitas:</span>
+                {selectedPurchase.logs.length > 0 ? (
+                  <div className="mt-2 space-y-2">
+                    {selectedPurchase.logs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm"
+                      >
+                        <p className="font-semibold text-slate-900">{log.action}</p>
+                        {log.note && (
+                          <p className="text-slate-600 mt-1 whitespace-pre-line">{log.note}</p>
+                        )}
+                        <p className="text-xs text-slate-500 mt-2">
+                          {new Date(log.createdAt).toLocaleString("id-ID")}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 mt-2">Belum ada aktivitas tercatat.</p>
+                )}
+              </div>
             </div>
           )}
 

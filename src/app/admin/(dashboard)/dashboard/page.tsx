@@ -25,27 +25,21 @@ import {
   Info,
 } from "lucide-react";
 import { StatCard } from "@/components/admin/StatCard";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { getEventsAction, getPhotosAction, getTotalRevenueAction } from "@/actions";
-
-// Mock data untuk demo - nanti bisa diganti dengan data dari database
-const salesData = [
-  { name: "Jan", penjualan: 12, revenue: 4200 },
-  { name: "Feb", penjualan: 19, revenue: 6800 },
-  { name: "Mar", penjualan: 15, revenue: 5300 },
-  { name: "Apr", penjualan: 25, revenue: 8900 },
-  { name: "Mei", penjualan: 22, revenue: 7700 },
-  { name: "Jun", penjualan: 30, revenue: 10500 },
-  { name: "Jul", penjualan: 28, revenue: 9800 },
-];
-
-const topPhotos = [
-  { name: "Wedding - Couple Shot", views: 245, sales: 15 },
-  { name: "Birthday Party - Group", views: 198, sales: 12 },
-  { name: "Corporate Event", views: 176, sales: 10 },
-  { name: "Graduation Photo", views: 154, sales: 8 },
-  { name: "Family Portrait", views: 132, sales: 7 },
-];
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+const formatMonth = (value: string) => {
+  const [year, month] = value.split("-");
+  const date = new Date(Number(year), Number(month) - 1);
+  return date.toLocaleDateString("id-ID", {
+    month: "short",
+    year: "2-digit",
+  });
+};
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
@@ -59,6 +53,15 @@ export default function DashboardPage() {
     totalEvents: 0,
     recentPhotos: 0,
   });
+  const [salesChart, setSalesChart] = useState<
+    Array<{ name: string; penjualan: number; revenue: number }>
+  >([]);
+  const [revenueChart, setRevenueChart] = useState<
+    Array<{ name: string; total: number }>
+  >([]);
+  const [topPhotos, setTopPhotos] = useState<
+    Array<{ photoId?: string; name: string; totalSales: number; totalRevenue?: number }>
+  >([]);
 
   useEffect(() => {
     // Check for info message from URL params
@@ -98,33 +101,60 @@ export default function DashboardPage() {
       try {
         setLoading(true);
 
-        // Load all data in parallel
-        const [photos, events, revenueData] = await Promise.all([
-          getPhotosAction(),
-          getEventsAction(),
-          getTotalRevenueAction(), // Get total revenue
-        ]);
+        const response = await fetch("/api/admin/dashboard/stats");
+        if (!response.ok) {
+          throw new Error("Failed to load dashboard stats");
+        }
 
-        // Calculate stats
-        const totalPhotos = photos.length;
-        const soldPhotos = photos.filter((p: { sold: boolean }) => p.sold).length;
-        const totalRevenue = revenueData.totalRevenue || 0;
-        const totalEvents = events.length;
-
-        // Get recent photos (last 30 days)
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const recentPhotos = photos.filter(
-          (p: { createdAt: Date }) => new Date(p.createdAt) >= thirtyDaysAgo
-        ).length;
+        const data = await response.json();
+        const s = data.stats ?? {};
 
         setStats({
-          totalPhotos,
-          soldPhotos,
-          totalRevenue,
-          totalEvents,
-          recentPhotos,
+          totalPhotos: s.totalPhotos ?? 0,
+          soldPhotos: s.soldPhotos ?? 0,
+          totalRevenue: s.totalRevenue ?? 0,
+          totalEvents: s.totalEvents ?? 0,
+          recentPhotos: s.recentPhotos ?? 0,
         });
+
+        const sales = Array.isArray(s.salesPerMonth)
+          ? s.salesPerMonth.map(
+              (item: { month: string; count: number; total?: number }) => ({
+                name: formatMonth(item.month),
+                penjualan: item.count ?? 0,
+                revenue: item.total ?? 0,
+              })
+            )
+          : [];
+
+        const revenues = Array.isArray(s.revenuePerMonth)
+          ? s.revenuePerMonth.map(
+              (item: { month: string; total: number }) => ({
+                name: formatMonth(item.month),
+                total: item.total ?? 0,
+              })
+            )
+          : [];
+
+        setSalesChart(sales);
+        setRevenueChart(revenues);
+        setTopPhotos(
+          Array.isArray(s.topPhotos)
+            ? s.topPhotos.map(
+                (item: {
+                  photoId?: string;
+                  name: string;
+                  totalSales: number;
+                  totalRevenue?: number;
+                }) => ({
+                  photoId: item.photoId,
+                  name: item.name,
+                  totalSales: item.totalSales ?? 0,
+                  totalRevenue: item.totalRevenue ?? undefined,
+                })
+              )
+            : []
+        );
       } catch (error) {
         console.error("Failed to load dashboard data:", error);
       } finally {
@@ -256,7 +286,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={salesData}>
+              <LineChart data={salesChart}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
                   dataKey="name"
@@ -302,7 +332,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={salesData}>
+              <BarChart data={revenueChart}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
                   dataKey="name"
@@ -325,7 +355,7 @@ export default function DashboardPage() {
                   formatter={(value: number) => [`Rp ${value}K`, "Revenue"]}
                 />
                 <Bar
-                  dataKey="revenue"
+                  dataKey="total"
                   fill="#0f172a"
                   radius={[8, 8, 0, 0]}
                   name="Revenue (Ribu)"
@@ -342,37 +372,45 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Foto Terpopuler</CardTitle>
             <CardDescription>
-              5 foto dengan views tertinggi bulan ini
+              5 foto dengan penjualan tertinggi
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {topPhotos.map((photo, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm font-bold">
-                      {index + 1}
+              {topPhotos.length === 0 ? (
+                <p className="text-sm text-slate-500">Belum ada data penjualan.</p>
+              ) : (
+                topPhotos.map((photo, index) => (
+                  <div
+                    key={photo.photoId ?? index}
+                    className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900 text-sm">
+                          {photo.name}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {photo.photoId ? `ID #${photo.photoId.slice(0, 8)}` : `Ranking #${index + 1}`}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-slate-900 text-sm">
-                        {photo.name}
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-slate-900">
+                        {photo.totalSales} terjual
                       </p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                        <Eye className="w-3 h-3" />
-                        {photo.views} views
-                      </p>
+                      {photo.totalRevenue !== undefined && (
+                        <p className="text-xs text-slate-500">
+                          Rp {photo.totalRevenue.toLocaleString("id-ID")}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-slate-900">
-                      {photo.sales} terjual
-                    </p>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -453,3 +491,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

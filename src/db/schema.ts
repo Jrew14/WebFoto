@@ -232,6 +232,27 @@ export const manualPaymentMethods = pgTable('manual_payment_methods', {
 // CART ITEMS TABLE
 // =====================================================
 
+export const purchaseLogs = pgTable('purchase_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  purchaseId: uuid('purchase_id')
+    .references(() => purchases.id, { onDelete: 'set null' }),
+  action: text('action').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    purchaseIdx: index('idx_purchase_logs_purchase').on(table.purchaseId),
+    createdIdx: index('idx_purchase_logs_created').on(table.createdAt),
+  };
+});
+
+export type PurchaseLog = typeof purchaseLogs.$inferSelect;
+export type NewPurchaseLog = typeof purchaseLogs.$inferInsert;
+
+// =====================================================
+// CART ITEMS TABLE
+// =====================================================
+
 export const cartItems = pgTable('cart_items', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id')

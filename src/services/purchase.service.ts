@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Purchase Service
  * 
  * Handles photo purchase transactions using Drizzle ORM
@@ -6,7 +6,7 @@
 
 import { db } from '@/db';
 import { purchases, photos, profiles, events } from '@/db/schema';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, inArray } from 'drizzle-orm';
 import type { NewPurchase, Purchase } from '@/db/schema';
 
 export interface PurchaseWithDetails extends Purchase {
@@ -110,6 +110,32 @@ export class PurchaseService {
       }));
     } catch (error) {
       console.error('Get user purchases error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get IDs of photos owned by the user (paid or still pending payment)
+   */
+  async getUserOwnedPhotoIds(userId: string, includePending = true): Promise<string[]> {
+    try {
+      const statuses: Array<'pending' | 'paid' | 'expired' | 'failed'> = includePending ? ['pending', 'paid'] : ['paid'];
+
+      const rows = await db
+        .select({ photoId: purchases.photoId })
+        .from(purchases)
+        .where(
+          and(
+            eq(purchases.buyerId, userId),
+            inArray(purchases.paymentStatus, statuses)
+          )
+        );
+
+      return rows
+        .map((row) => row.photoId)
+        .filter((id): id is string => Boolean(id));
+    } catch (error) {
+      console.error('Get user owned photo ids error:', error);
       throw error;
     }
   }

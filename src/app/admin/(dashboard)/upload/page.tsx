@@ -12,7 +12,7 @@ import {
   Loader2,
   CheckCircle,
 } from "lucide-react";
-import { getEventsAction, createPhotoAction } from "@/actions";
+import { getEventsAction, createPhotoAction } from "@/actions/photo.actions";
 import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";

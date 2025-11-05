@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { XCircle, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 function PaymentFailedContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const merchantRef = searchParams.get("merchant_ref") || searchParams.get("transaction_id");
   const reference = searchParams.get("reference");
   const [loading, setLoading] = useState(true);
@@ -86,24 +87,28 @@ function PaymentFailedContent() {
 
           <div className="flex flex-col gap-2 pt-2">
             <Button
-              asChild
               className="w-full bg-[#48CAE4] hover:bg-[#3AAFCE]"
+              onClick={() => router.push("/shop")}
             >
-              <Link href="/shop">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Try Again
-              </Link>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Try Again
             </Button>
-            
+
             <Button
-              asChild
               variant="outline"
               className="w-full"
+              onClick={() => router.push("/gallery")}
             >
-              <Link href="/gallery">
-                Go to Gallery
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Link>
+              Go to Gallery
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() => router.push("/user/purchases")}
+            >
+              View Purchase Log
             </Button>
           </div>
         </CardContent>

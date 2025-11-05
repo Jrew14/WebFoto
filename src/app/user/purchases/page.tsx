@@ -1,10 +1,16 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Clock,
   CheckCircle,
@@ -16,7 +22,7 @@ import {
   Calendar,
   CreditCard,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface Purchase {
   id: string;
@@ -29,6 +35,8 @@ interface Purchase {
   purchasedAt: string;
   paidAt: string | null;
   expiresAt: string | null;
+  paymentCheckoutUrl: string | null;
+  paymentReference: string | null;
   photo: {
     id: string;
     name: string;
@@ -39,14 +47,26 @@ interface Purchase {
       eventDate: string;
     } | null;
   };
+  manualPaymentMethod: {
+    id: string | null;
+    name: string | null;
+    accountNumber: string | null;
+    accountName: string | null;
+    type: string | null;
+    instructions: string | null;
+  } | null;
 }
 
 export default function UserPurchasesPage() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "paid" | "pending">("all");
+  const [highlightTransaction, setHighlightTransaction] = useState<string | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{ name: string; url: string } | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     // Wait for auth to finish loading
@@ -59,6 +79,11 @@ export default function UserPurchasesPage() {
 
     loadPurchases();
   }, [isAuthenticated, authLoading, router]);
+
+  useEffect(() => {
+    const highlight = searchParams.get("highlight");
+    setHighlightTransaction(highlight);
+  }, [searchParams]);
 
   const loadPurchases = async () => {
     try {
@@ -99,6 +124,77 @@ export default function UserPurchasesPage() {
     }
   };
 
+  const handlePreview = (purchase: Purchase) => {
+    const url = purchase.photo.fullUrl || purchase.photo.previewUrl;
+    if (!url) {
+      window.alert("File foto tidak tersedia.");
+      return;
+    }
+
+    setPreviewPhoto({ name: purchase.photo.name, url });
+    setPreviewOpen(true);
+  };
+
+  const handlePayNow = async (purchase: Purchase) => {
+    try {
+      const response = await fetch(
+        `/api/purchases/${purchase.id}/sync`,
+        { method: "PATCH" }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to refresh payment status");
+      }
+
+      const updated: Purchase | undefined = data?.purchase;
+      if (updated) {
+        setPurchases((prev) =>
+          prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
+        );
+
+        if (updated.paymentStatus !== "pending") {
+          window.alert("Transaksi sebelumnya sudah tidak berlaku. Silakan buat pesanan baru.");
+          router.push("/shop");
+          return;
+        }
+
+        if (updated.paymentCheckoutUrl) {
+          window.open(updated.paymentCheckoutUrl, "_blank", "noopener");
+          return;
+        }
+
+        const params = new URLSearchParams();
+        if (updated.paymentReference) {
+          params.set("reference", updated.paymentReference);
+        }
+        if (updated.transactionId) {
+          params.set("merchant_ref", updated.transactionId);
+        }
+
+        window.location.href =
+          params.toString().length > 0
+            ? `/payment/pending?${params.toString()}`
+            : `/payment/pending`;
+        return;
+      }
+    } catch (error) {
+      console.error("[Purchases] sync error:", error);
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Gagal memeriksa status pembayaran. Coba lagi nanti."
+      );
+    }
+  };
+
+  const handleContinueManual = (purchase: Purchase) => {
+    if (!purchase.transactionId) return;
+    window.location.href = `/payment/manual-pending?transactionId=${encodeURIComponent(
+      purchase.transactionId
+    )}`;
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "paid":
@@ -117,7 +213,7 @@ export default function UserPurchasesPage() {
         );
       case "expired":
         return (
-          <Badge variant="secondary">
+          <Badge className="bg-orange-500 text-white">
             <Clock className="w-3 h-3 mr-1" />
             Expired
           </Badge>
@@ -134,12 +230,14 @@ export default function UserPurchasesPage() {
     }
   };
 
-  const filteredPurchases = purchases.filter((p) => {
-    if (filter === "all") return true;
-    if (filter === "paid") return p.paymentStatus === "paid";
-    if (filter === "pending") return p.paymentStatus === "pending";
-    return true;
-  });
+  const filteredPurchases = useMemo(() => {
+    return purchases.filter((p) => {
+      if (filter === "all") return true;
+      if (filter === "paid") return p.paymentStatus === "paid";
+      if (filter === "pending") return p.paymentStatus === "pending";
+      return true;
+    });
+  }, [purchases, filter]);
 
   if (authLoading || loading) {
     return (
@@ -210,117 +308,211 @@ export default function UserPurchasesPage() {
           </Card>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredPurchases.map((purchase) => (
-              <Card key={purchase.id} className="overflow-hidden">
-                <div className="relative aspect-video">
-                  <img
-                    src={
-                      purchase.paymentStatus === "paid"
-                        ? purchase.photo.fullUrl
-                        : purchase.photo.previewUrl
-                    }
-                    alt={purchase.photo.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-2 right-2">
-                    {getStatusBadge(purchase.paymentStatus)}
-                  </div>
-                  {purchase.paymentStatus === "paid" && (
-                    <div className="absolute top-2 left-2">
-                      <Badge className="bg-green-600">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Full Quality
-                      </Badge>
-                    </div>
-                  )}
-                </div>
+            {filteredPurchases.map((purchase) => {
+              const isHighlighted =
+                !!highlightTransaction &&
+                (highlightTransaction === purchase.transactionId ||
+                  highlightTransaction === purchase.id);
+              const total =
+                purchase.totalAmount ?? purchase.amount ?? 0;
+              const baseAmount = purchase.amount ?? 0;
+              const feeAmount = Math.max(total - baseAmount, 0);
 
-                <CardContent className="pt-4 space-y-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-900 truncate">
-                      {purchase.photo.name}
-                    </h3>
-                    {purchase.photo.event && (
-                      <p className="text-sm text-gray-600">
-                        {purchase.photo.event.name}
-                      </p>
+              return (
+                <Card
+                  key={purchase.id}
+                  className={`overflow-hidden transition-shadow ${
+                    isHighlighted ? "ring-2 ring-[#48CAE4] shadow-xl" : ""
+                  }`}
+                >
+                  <div className="relative aspect-video">
+                    <img
+                      src={
+                        purchase.paymentStatus === "paid"
+                          ? purchase.photo.fullUrl
+                          : purchase.photo.previewUrl
+                      }
+                      alt={purchase.photo.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-2 right-2">
+                      {getStatusBadge(purchase.paymentStatus)}
+                    </div>
+                    {purchase.paymentStatus === "paid" && (
+                      <div className="absolute top-2 left-2">
+                        <Badge className="bg-green-600">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Full Quality
+                        </Badge>
+                      </div>
                     )}
                   </div>
 
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Calendar className="w-4 h-4" />
-                      <span>
-                        {new Date(purchase.purchasedAt).toLocaleDateString("id-ID")}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <CreditCard className="w-4 h-4" />
-                      <span className="capitalize">
-                        {purchase.paymentType === "manual" ? "Manual Transfer" : "Automatic"}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center pt-2 border-t">
-                      <span className="text-gray-600">Amount</span>
-                      <span className="font-bold text-[#48CAE4]">
-                        Rp {purchase.totalAmount.toLocaleString("id-ID")}
-                      </span>
-                    </div>
-                  </div>
-
-                  {purchase.paymentStatus === "paid" ? (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() =>
-                          window.open(purchase.photo.previewUrl, "_blank")
-                        }
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="flex-1 bg-[#48CAE4] hover:bg-[#3AAFCE]"
-                        onClick={() =>
-                          handleDownload(purchase.photo.id, purchase.photo.name)
-                        }
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        Download
-                      </Button>
-                    </div>
-                  ) : purchase.paymentStatus === "pending" ? (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-xs text-yellow-800">
-                        {purchase.paymentType === "manual"
-                          ? "Waiting for admin verification"
-                          : "Payment pending"}
-                      </p>
-                      {purchase.expiresAt && (
-                        <p className="text-xs text-yellow-700 mt-1">
-                          Expires:{" "}
-                          {new Date(purchase.expiresAt).toLocaleString("id-ID")}
+                  <CardContent className="pt-4 space-y-3">
+                    <div>
+                      <h3 className="font-semibold text-gray-900 truncate">
+                        {purchase.photo.name}
+                      </h3>
+                      {purchase.photo.event && (
+                        <p className="text-sm text-gray-600">
+                          {purchase.photo.event.name}
                         </p>
                       )}
                     </div>
-                  ) : (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-xs text-red-800">
-                        Payment {purchase.paymentStatus}
-                      </p>
+
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <Calendar className="w-4 h-4" />
+                        <span>
+                          {new Date(purchase.purchasedAt).toLocaleDateString("id-ID")}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <CreditCard className="w-4 h-4" />
+                        <span className="capitalize">
+                          {purchase.paymentType === "manual" ? "Manual Transfer" : "Automatic"}
+                        </span>
+                      </div>
+
+                      {purchase.paymentType === "manual" &&
+                        purchase.manualPaymentMethod && (
+                          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed">
+                            <p className="font-medium text-slate-900 mb-1">
+                              {purchase.manualPaymentMethod.name}
+                            </p>
+                            <p>{purchase.manualPaymentMethod.accountName}</p>
+                            <p>{purchase.manualPaymentMethod.accountNumber}</p>
+                          </div>
+                        )}
+
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <span className="text-gray-600">Total Amount</span>
+                        <span className="font-bold text-[#48CAE4]">
+                          Rp {total.toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                      {feeAmount > 0 && (
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Includes fees</span>
+                          <span>Rp {feeAmount.toLocaleString("id-ID")}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+
+                    {purchase.paymentStatus === "paid" ? (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => handlePreview(purchase)}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="flex-1 bg-[#48CAE4] hover:bg-[#3AAFCE]"
+                          onClick={() =>
+                            handleDownload(purchase.photo.id, purchase.photo.name)
+                          }
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
+                        </Button>
+                      </div>
+                    ) : purchase.paymentStatus === "pending" ? (
+                      <div className="space-y-3">
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-xs text-yellow-800 font-medium">
+                            {purchase.paymentType === "manual"
+                              ? "Waiting for admin verification / upload proof"
+                              : "Payment pending"}
+                          </p>
+                          {purchase.expiresAt && (
+                            <p className="text-xs text-yellow-700 mt-1">
+                              Expires:{" "}
+                              {new Date(purchase.expiresAt).toLocaleString("id-ID")}
+                            </p>
+                          )}
+                        </div>
+
+                        {purchase.paymentType === "automatic" ? (
+                          <Button
+                            className="w-full bg-[#48CAE4] hover:bg-[#3AAFCE]"
+                            onClick={() => handlePayNow(purchase)}
+                          >
+                            Pay Now
+                          </Button>
+                        ) : (
+                          <Button
+                            className="w-full bg-[#48CAE4] hover:bg-[#3AAFCE]"
+                            onClick={() => handleContinueManual(purchase)}
+                          >
+                            Continue Payment
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-xs text-red-800 font-medium">
+                            Payment {purchase.paymentStatus}
+                          </p>
+                          <p className="text-xs text-red-700 mt-1">
+                            Silakan lakukan pemesanan ulang jika masih ingin membeli foto ini.
+                          </p>
+                        </div>
+                        <Button
+                          className="w-full bg-[#48CAE4] hover:bg-[#3AAFCE]"
+                          onClick={() => {
+                            router.push(`/shop?photoId=${purchase.photo.id}`);
+                          }}
+                        >
+                          Beli Ulang
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
+
+      <Dialog
+        open={previewOpen}
+        onOpenChange={(open) => {
+          setPreviewOpen(open);
+          if (!open) {
+            setPreviewPhoto(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl overflow-hidden border-0 p-0 shadow-2xl">
+          <DialogHeader className="px-6 pt-4 pb-2">
+            <DialogTitle className="text-lg font-semibold text-slate-900">
+              {previewPhoto?.name ?? "Preview Foto"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="bg-slate-900">
+            {previewPhoto ? (
+              <img
+                src={previewPhoto.url}
+                alt={previewPhoto.name}
+                className="h-[70vh] w-full object-contain"
+              />
+            ) : (
+              <div className="flex h-[70vh] items-center justify-center text-sm text-slate-100">
+                Foto tidak tersedia
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

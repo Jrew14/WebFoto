@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Camera, ShoppingBag, User, LogOut, Menu, X } from "lucide-react";
+import {
+  Camera,
+  Images,
+  LogOut,
+  Menu,
+  Phone,
+  ShoppingCart,
+  UserCircle,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,6 +20,7 @@ export function UserNavbar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const whatsappLink = "https://wa.me/6285287229898";
 
   const handleSignOut = async () => {
     await signOut();
@@ -22,13 +32,27 @@ export function UserNavbar() {
       name: "Get Your Photo",
       href: "/shop",
       icon: Camera,
+      match: (path: string) => path === "/shop" || path.startsWith("/shop/"),
     },
     {
       name: "Gallery",
       href: "/gallery",
-      icon: Camera,
+      icon: Images,
+      match: (path: string) => path === "/gallery" || path.startsWith("/gallery/"),
     },
-  ];
+    {
+      name: "Cart",
+      href: "/cart",
+      icon: ShoppingCart,
+      match: (path: string) => path === "/cart" || path.startsWith("/cart/"),
+    },
+    {
+      name: "Profile",
+      href: "/user/profile",
+      icon: UserCircle,
+      match: (path: string) => path.startsWith("/user/profile"),
+    },
+  ] as const;
 
   return (
     <nav className="sticky top-0 z-50 bg-white border-b shadow-sm">
@@ -47,17 +71,21 @@ export function UserNavbar() {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = item.match ? item.match(pathname) : pathname === item.href;
               const Icon = item.icon;
               return (
-                <Link key={item.href} href={item.href}>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                >
                   <Button
                     variant={isActive ? "default" : "ghost"}
-                    className={
+                    className={`transition-colors ${
                       isActive
-                        ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white"
-                        : ""
-                    }
+                        ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-md"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
                   >
                     <Icon className="w-4 h-4 mr-2" />
                     {item.name}
@@ -65,6 +93,14 @@ export function UserNavbar() {
                 </Link>
               );
             })}
+            <Link href={whatsappLink} target="_blank" rel="noopener noreferrer">
+              <Button
+                variant="outline"
+                className="ml-3 border-[#48CAE4] text-[#048abf] hover:bg-[#48CAE4]/10"
+              >
+                Hubungi WhatsApp
+              </Button>
+            </Link>
           </div>
 
           {/* User Menu */}
@@ -104,12 +140,13 @@ export function UserNavbar() {
         <div className="md:hidden border-t bg-white">
           <div className="px-4 py-3 space-y-1">
             {navItems.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = item.match ? item.match(pathname) : pathname === item.href;
               const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={isActive ? "page" : undefined}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <div
@@ -146,6 +183,18 @@ export function UserNavbar() {
                 </button>
               </div>
             )}
+            <Link
+              href={whatsappLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block"
+            >
+              <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-cyan-200 text-[#048abf]">
+                <Phone className="w-5 h-5" />
+                <span className="font-medium">Hubungi WhatsApp</span>
+              </div>
+            </Link>
           </div>
         </div>
       )}

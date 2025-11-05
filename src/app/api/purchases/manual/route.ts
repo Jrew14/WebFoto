@@ -5,6 +5,7 @@ import { purchases, photos, profiles, manualPaymentMethods } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { fonnteService } from "@/services/fonnte.service";
+import { purchaseLogService } from "@/services/purchase-log.service";
 
 export async function POST(request: Request) {
   try {
@@ -91,6 +92,13 @@ export async function POST(request: Request) {
       );
     }
 
+    const baseAmount = photo.price;
+    const fixedFee = paymentMethod.fee || 0;
+    const percentageFee = Math.floor(
+      (baseAmount * (paymentMethod.feePercentage || 0)) / 10000
+    );
+    const totalAmount = baseAmount + fixedFee + percentageFee;
+
     // Create manual payment purchase
     const transactionId = `MANUAL-${Date.now()}-${nanoid(8)}`;
     
@@ -103,8 +111,8 @@ export async function POST(request: Request) {
       .values({
         buyerId: user.id,
         photoId: photoId,
-        amount: photo.price,
-        totalAmount: photo.price, // TODO: Calculate with fees
+        amount: baseAmount,
+        totalAmount: totalAmount,
         paymentType: "manual",
         paymentMethod: "manual_transfer",
         manualPaymentMethodId: manualPaymentMethodId,
@@ -114,6 +122,12 @@ export async function POST(request: Request) {
       })
       .returning();
 
+    await purchaseLogService.log({
+      purchaseId: purchase.id,
+      action: "manual_created",
+      note: `Pesanan manual dibuat menggunakan metode ${paymentMethod.name}.`,
+    });
+
     // Send WhatsApp notification (async, don't wait)
     if (buyer.phone) {
       const formattedPhone = fonnteService.formatPhoneNumber(buyer.phone);
@@ -121,7 +135,7 @@ export async function POST(request: Request) {
         customerName: buyer.fullName,
         customerPhone: formattedPhone,
         photoName: photo.name,
-        amount: photo.price,
+        amount: totalAmount,
         paymentMethod: paymentMethod.name,
         accountNumber: paymentMethod.accountNumber,
         accountName: paymentMethod.accountName,
@@ -137,10 +151,26 @@ export async function POST(request: Request) {
       purchase: {
         id: purchase.id,
         transactionId: purchase.transactionId,
-        amount: purchase.amount,
-        totalAmount: purchase.totalAmount,
+        amount: baseAmount,
+        totalAmount: totalAmount,
         status: purchase.paymentStatus,
         expiresAt: purchase.expiresAt,
+        manualPaymentMethod: {
+          id: paymentMethod.id,
+          name: paymentMethod.name,
+          accountNumber: paymentMethod.accountNumber,
+          accountName: paymentMethod.accountName,
+          type: paymentMethod.type,
+          instructions: paymentMethod.instructions,
+          fee: paymentMethod.fee,
+          feePercentage: paymentMethod.feePercentage,
+        },
+        photo: {
+          id: photo.id,
+          name: photo.name,
+          price: baseAmount,
+          previewUrl: photo.previewUrl,
+        },
       },
     });
   } catch (error) {

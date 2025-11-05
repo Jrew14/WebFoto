@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, User, LogOut } from "lucide-react";
+import { Menu, X, User, LogOut, ShoppingCart, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -65,10 +65,32 @@ export function PublicNavbar() {
             Gallery
             <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#48CAE4] group-hover:w-full transition-all duration-300" />
           </Link>
+          <Link 
+            href="/cart" 
+            className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-[#48CAE4] transition-colors relative group"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            <span>Cart</span>
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#48CAE4] group-hover:w-full transition-all duration-300" />
+          </Link>
         </nav>
 
         {/* Auth Buttons / User Profile - Desktop */}
         <div className="hidden md:flex items-center gap-3">
+          <Button
+            asChild
+            variant="outline"
+            className="border-[#48CAE4] text-[#048abf] hover:bg-[#48CAE4]/10 flex items-center gap-2"
+          >
+            <a
+              href="https://wa.me/6285287229898"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <MessageCircle className="w-4 h-4" />
+              WhatsApp
+            </a>
+          </Button>
           {isAuthenticated && user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -155,6 +177,29 @@ export function PublicNavbar() {
             >
               Gallery
             </Link>
+            <Link 
+              href="/cart" 
+              className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-[#48CAE4] hover:bg-[#48CAE4]/10 rounded-lg transition-colors flex items-center gap-2"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <ShoppingCart className="w-4 h-4" />
+              Cart
+            </Link>
+            <Button
+              asChild
+              variant="outline"
+              className="flex items-center gap-2 justify-center text-[#048abf] border-[#48CAE4]"
+            >
+              <a
+                href="https://wa.me/6285287229898"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <MessageCircle className="w-4 h-4" />
+                WhatsApp Admin
+              </a>
+            </Button>
             
             <div className="pt-3 border-t flex flex-col gap-2">
               {isAuthenticated && user ? (
@@ -218,3 +263,4 @@ export function PublicNavbar() {
     </header>
   );
 }
+

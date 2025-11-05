@@ -15,9 +15,10 @@ if (!API_KEY || !PRIVATE_KEY || !MERCHANT_CODE) {
 // - T46723 is a PRODUCTION merchant code (not sandbox)
 // - Set MODE to "production" to use production API
 // - Sandbox codes start with "T" but are different (e.g., from simulator)
-const BASE_URL = MODE === "sandbox"
-  ? "https://tripay.co.id/api-sandbox"
-  : "https://tripay.co.id/api-merchant";
+const BASE_URL =
+  MODE === "sandbox"
+    ? "https://tripay.co.id/api-sandbox"
+    : "https://tripay.co.id/api";
 
 console.log(`[Tripay] Using ${MODE.toUpperCase()} mode with merchant code: ${MERCHANT_CODE}`);
 console.log(`[Tripay] API URL: ${BASE_URL}`);
@@ -154,7 +155,10 @@ class TripayService {
       console.error("[Tripay] Failed to get payment channels:", error);
       
       // If Cloudflare blocks the request (403), return mock data for development
-      if (error instanceof Error && error.message.includes("403")) {
+      if (
+        error instanceof Error &&
+        /cloudflare/i.test(error.message)
+      ) {
         console.warn("[Tripay] Using mock payment channels due to Cloudflare block");
         return this.getMockPaymentChannels();
       }
@@ -236,8 +240,11 @@ class TripayService {
       throw new Error("Tripay credential is not configured");
     }
 
-    const signaturePayload = `${MERCHANT_CODE}${params.merchantRef}${params.amount}${PRIVATE_KEY}`;
-    const signature = crypto.createHash("sha256").update(signaturePayload).digest("hex");
+    const signaturePayload = `${MERCHANT_CODE}${params.merchantRef}${params.amount}`;
+    const signature = crypto
+      .createHmac("sha256", PRIVATE_KEY)
+      .update(signaturePayload)
+      .digest("hex");
 
     const expiredTime = params.expiredTime
       ?? Math.floor(Date.now() / 1000) + this.defaultExpiry;
@@ -279,6 +286,18 @@ class TripayService {
   async getTransactionDetail(reference: string): Promise<TripayTransaction> {
     const data = await this.request<{ data: TripayTransaction }>(
       `/transaction/detail?reference=${reference}`
+    );
+
+    if ((data as Record<string, unknown>)?.data) {
+      return (data as Record<string, unknown>).data as TripayTransaction;
+    }
+
+    return data as unknown as TripayTransaction;
+  }
+
+  async getTransactionDetailByMerchantRef(merchantRef: string): Promise<TripayTransaction> {
+    const data = await this.request<{ data: TripayTransaction }>(
+      `/transaction/detail?merchant_ref=${merchantRef}`
     );
 
     if ((data as Record<string, unknown>)?.data) {

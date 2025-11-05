@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { ShoppingCart, Heart, Search, Filter } from "lucide-react";
@@ -93,7 +93,8 @@ export default function BrowsePage() {
       const cart = await response.json();
       setCartCount(cart.totalItems || 0);
       
-      const photoIds = new Set(cart.items.map((item: any) => item.photoId));
+      const items = Array.isArray(cart.items) ? cart.items : [];
+      const photoIds = new Set<string>(items.map((item: { photoId: string }) => item.photoId));
       setInCartPhotoIds(photoIds);
     } catch (error) {
       console.error("Error loading cart:", error);

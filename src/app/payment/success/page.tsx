@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, Download, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const merchantRef = searchParams.get("merchant_ref") || searchParams.get("transaction_id");
   const reference = searchParams.get("reference");
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,16 @@ function PaymentSuccessContent() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      const timer = setTimeout(() => {
+        router.replace(`/user/purchases${merchantRef ? `?highlight=${merchantRef}` : ""}`);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [loading, merchantRef, router]);
 
   if (loading) {
     return (
@@ -69,19 +80,20 @@ function PaymentSuccessContent() {
 
           <div className="p-4 bg-[#48CAE4]/10 border border-[#48CAE4]/20 rounded-lg">
             <p className="text-sm text-slate-700 leading-relaxed">
-              Your photo is now available in your <strong>Gallery</strong>. You can download it anytime!
+              Pembelian Anda telah tercatat di <strong>Log Pembelian</strong>.
+              Anda akan diarahkan secara otomatis dalam beberapa detik.
             </p>
           </div>
 
           <div className="flex flex-col gap-2 pt-2">
             <Button
-              asChild
               className="w-full bg-[#48CAE4] hover:bg-[#3AAFCE]"
+              onClick={() =>
+                router.push(`/user/purchases${merchantRef ? `?highlight=${merchantRef}` : ""}`)
+              }
             >
-              <Link href="/gallery">
-                <Download className="w-4 h-4 mr-2" />
-                Go to Gallery
-              </Link>
+              <Download className="w-4 h-4 mr-2" />
+              Go to Purchase Log
             </Button>
             
             <Button

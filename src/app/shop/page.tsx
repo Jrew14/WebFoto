@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, X, ShoppingCart, ImageIcon, Bookmark, Loader2 } from "lucide-react";
+import { Search, X, ShoppingCart, ImageIcon, Bookmark, Loader2, ClipboardList, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,7 +22,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getPhotosAction, searchPhotosAction, getEventsAction, toggleBookmarkAction, getUserBookmarkIdsAction } from "@/actions";
+import { getPhotosAction, searchPhotosAction, getEventsAction } from "@/actions/photo.actions";
+import { toggleBookmarkAction, getUserBookmarkIdsAction, getUserOwnedPhotoIdsAction } from "@/actions/user.actions";
 import { useAuth } from "@/hooks/useAuth";
 import type { Photo as PhotoType } from "@/db/schema";
 
@@ -71,6 +73,27 @@ interface TripayChannel {
   group?: string;
 }
 
+const formatIndonesianDate = (value?: string | Date | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const formatCurrency = (value: number) => {
+  return `Rp ${value.toLocaleString("id-ID")}`;
+};
+
 export default function ShopPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
@@ -79,9 +102,10 @@ export default function ShopPage() {
   const [events, setEvents] = useState<EventWithPhotographer[]>([]);
   const [filterEvent, setFilterEvent] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [displayedPhotos, setDisplayedPhotos] = useState<PhotoWithRelations[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [bookmarkIds, setBookmarkIds] = useState<Set<string>>(new Set());
+  const [ownedPhotoIds, setOwnedPhotoIds] = useState<Set<string>>(new Set());
+  const [addingToCartIds, setAddingToCartIds] = useState<Set<string>>(() => new Set());
   
   // Photo detail modal state
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoWithRelations | null>(null);
@@ -129,6 +153,58 @@ export default function ShopPage() {
     setConfirmDialog({ open: true, title, description, onConfirm });
   };
 
+  const updateOwnedPhotoIds = (ids: string[]) => {
+    setOwnedPhotoIds((previous) => {
+      const next = new Set(ids);
+      if (previous.size === next.size) {
+        let identical = true;
+        next.forEach((id) => {
+          if (!previous.has(id)) {
+            identical = false;
+          }
+        });
+        if (identical) {
+          return previous;
+        }
+      }
+      return next;
+    });
+  };
+
+  const addOwnedPhotoId = (photoId: string) => {
+    setOwnedPhotoIds((previous) => {
+      if (previous.has(photoId)) {
+        return previous;
+      }
+      const next = new Set(previous);
+      next.add(photoId);
+      return next;
+    });
+  };
+
+  const removeOwnedPhotoId = (photoId: string) => {
+    setOwnedPhotoIds((previous) => {
+      if (!previous.has(photoId)) {
+        return previous;
+      }
+      const next = new Set(previous);
+      next.delete(photoId);
+      return next;
+    });
+  };
+
+  const setCartLoading = (photoId: string, isLoading: boolean) => {
+    setAddingToCartIds((previous) => {
+      const next = new Set(previous);
+      if (isLoading) {
+        next.add(photoId);
+      } else {
+        next.delete(photoId);
+      }
+      return next;
+    });
+  };
+
   // Open photo detail modal
   const handlePhotoClick = (photo: PhotoWithRelations) => {
     setSelectedPhoto(photo);
@@ -142,10 +218,75 @@ export default function ShopPage() {
       router.push('/auth/signin');
       return;
     }
+
+    if (ownedPhotoIds.has(photo.id)) {
+      showConfirm(
+        "Foto Sudah Dimiliki",
+        "Kamu sudah memiliki foto ini. Buka Log Pembelian untuk mengunduh ulang?",
+        () => {
+          router.push(`/user/purchases?photoId=${photo.id}`);
+        }
+      );
+      return;
+    }
     
     // Open payment type selection dialog
     setSelectedPhotoForBuy(photo);
     setPaymentTypeDialog(true);
+  };
+
+  const handleAddToCart = async (photo: PhotoWithRelations, options?: { redirectToCart?: boolean }) => {
+    if (!isAuthenticated) {
+      router.push("/auth/signin");
+      return;
+    }
+
+    if (ownedPhotoIds.has(photo.id)) {
+      showAlert(
+        "Foto Sudah Dimiliki",
+        "Foto ini sudah ada di koleksi pembelian kamu. Silakan buka Log Pembelian untuk mengunduh."
+      );
+      return;
+    }
+
+    if (photo.sold) {
+      showAlert("Foto Tidak Tersedia", "Foto ini sudah terjual dan tidak dapat dimasukkan ke keranjang.");
+      return;
+    }
+
+    setCartLoading(photo.id, true);
+
+    try {
+      const response = await fetch("/api/cart", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ photoId: photo.id }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to add to cart");
+      }
+
+      if (data.alreadyExists) {
+        showAlert("Sudah di Keranjang", "Foto ini sebelumnya sudah ada di keranjang kamu.");
+      } else {
+        showAlert("Berhasil Ditambahkan", "Foto berhasil ditambahkan ke keranjang.");
+      }
+
+      if (options?.redirectToCart) {
+        router.push("/cart");
+      }
+    } catch (error) {
+      console.error("Add to cart error:", error);
+      const message = error instanceof Error ? error.message : "Failed to add to cart";
+      showAlert("Gagal Menambahkan", message);
+    } finally {
+      setCartLoading(photo.id, false);
+    }
   };
 
   // Handle payment type selection
@@ -175,12 +316,11 @@ export default function ShopPage() {
     try {
       setProcessingPayment(true);
 
-      if (selectedPaymentType === "manual") {
-        // TODO: Create manual payment purchase
-        // For now, redirect to manual payment page
-        router.push(`/payment/manual-instructions?photoId=${selectedPhotoForBuy.id}`);
-        return;
-      }
+    if (selectedPaymentType === "manual") {
+      addOwnedPhotoId(selectedPhotoForBuy.id);
+      router.push(`/payment/manual-instructions?photoId=${selectedPhotoForBuy.id}`);
+      return;
+    }
 
       // Automatic payment with Tripay
       const response = await fetch('/api/purchases/create', {
@@ -198,6 +338,10 @@ export default function ShopPage() {
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to create purchase');
+      }
+
+      if (data?.purchase?.photoId) {
+        addOwnedPhotoId(data.purchase.photoId);
       }
 
       if (data.checkoutUrl) {
@@ -220,10 +364,27 @@ export default function ShopPage() {
         'Your payment request was created but no checkout URL was returned. Please contact support.'
       );
     } catch (error) {
-      console.error('Payment error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to process payment';
-      showAlert('Payment Error', errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to process payment";
+
       setProcessingPayment(false);
+
+      if (errorMessage.toLowerCase().includes('already purchased')) {
+        setBuyDialog(false);
+        const purchasedPhotoId = selectedPhotoForBuy?.id;
+        showConfirm(
+          'Foto Sudah Dibeli',
+          'Kamu sudah membeli foto ini sebelumnya. Buka Log Pembelian untuk mengunduh ulang?',
+          () => {
+            const highlight = purchasedPhotoId ? `?photoId=${purchasedPhotoId}` : '';
+            router.push(`/user/purchases${highlight}`);
+          }
+        );
+        return;
+      }
+
+      console.warn('[Shop] Payment attempt failed:', errorMessage);
+      showAlert('Payment Error', errorMessage);
     }
   };
 
@@ -291,14 +452,27 @@ export default function ShopPage() {
           getEventsAction(),
         ]);
 
-        setPhotos(photosData);
-        setEvents(eventsData);
+        let bookmarkList: string[] = [];
+        let ownedIds: string[] = [];
 
-        // Load bookmark IDs if user is authenticated
-        if (isAuthenticated && user) {
-          const ids = await getUserBookmarkIdsAction(user.id);
-          setBookmarkIds(new Set(ids));
+        if (isAuthenticated && user?.id) {
+          const [bookmarkIdList, ownedIdResponse] = await Promise.all([
+            getUserBookmarkIdsAction(user.id),
+            fetch("/api/purchases/user?ownedOnly=1&includePending=0")
+              .then((res) => res.json())
+              .catch(() => ({ photoIds: [] })),
+          ]);
+
+          bookmarkList = Array.isArray(bookmarkIdList) ? bookmarkIdList : [];
+          ownedIds = Array.isArray(ownedIdResponse.photoIds)
+            ? ownedIdResponse.photoIds
+            : [];
         }
+
+        setEvents(eventsData);
+        setBookmarkIds(new Set(bookmarkList));
+        updateOwnedPhotoIds(ownedIds);
+        setPhotos(photosData);
       } catch (error) {
         console.error('Failed to load shop data:', error);
       } finally {
@@ -307,10 +481,15 @@ export default function ShopPage() {
     }
 
     loadData();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user?.id]);
+
+  const availablePhotos = useMemo(
+    () => photos.filter((photo) => !ownedPhotoIds.has(photo.id)),
+    [photos, ownedPhotoIds]
+  );
 
   // Filter photos based on selected event and search query
-  const filteredPhotos = photos.filter((photo) => {
+  const filteredPhotos = availablePhotos.filter((photo) => {
     if (filterEvent !== "all" && photo.eventId !== filterEvent) return false;
     if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase();
@@ -323,19 +502,12 @@ export default function ShopPage() {
     return true;
   });
 
-  // Load initial photos
-  useEffect(() => {
-    // Always show all filtered photos
-    setDisplayedPhotos(filteredPhotos);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterEvent, searchQuery, photos]);
-
   const filterEvents = [
-    { id: "all", name: "All Events", count: photos.length },
-    ...events.map(event => ({
+    { id: "all", name: "All Events", count: availablePhotos.length },
+    ...events.map((event) => ({
       id: event.id,
       name: event.name,
-      count: photos.filter(p => p.eventId === event.id).length,
+      count: availablePhotos.filter((p) => p.eventId === event.id).length,
     })),
   ];
 
@@ -434,26 +606,51 @@ export default function ShopPage() {
       {/* Filter Section */}
       <section className="bg-white border-b sticky top-16 z-40 shadow-sm">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            <span className="text-sm font-medium text-slate-600 whitespace-nowrap">Filter by Event:</span>
-            {filterEvents.map((event) => (
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+              <span className="text-sm font-medium text-slate-600 whitespace-nowrap">Filter by Event:</span>
+              {filterEvents.map((event) => (
+                <Button
+                  key={event.id}
+                  variant={filterEvent === event.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterEvent(event.id)}
+                  className={`whitespace-nowrap transition-all ${
+                    filterEvent === event.id
+                      ? "bg-[#48CAE4] hover:bg-[#3AAFCE] text-white shadow-md"
+                      : "bg-white hover:bg-[#48CAE4]/10 text-slate-700 border-slate-300"
+                  }`}
+                >
+                  {event.name}
+                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-white/20">
+                    {event.count}
+                  </span>
+                </Button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-2 self-start md:self-auto">
               <Button
-                key={event.id}
-                variant={filterEvent === event.id ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilterEvent(event.id)}
-                className={`whitespace-nowrap transition-all ${
-                  filterEvent === event.id
-                    ? "bg-[#48CAE4] hover:bg-[#3AAFCE] text-white shadow-md"
-                    : "bg-white hover:bg-[#48CAE4]/10 text-slate-700 border-slate-300"
-                }`}
+                asChild
+                variant="outline"
+                className="border-[#48CAE4] text-[#048abf] hover:bg-[#48CAE4]/10"
               >
-                {event.name}
-                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-white/20">
-                  {event.count}
-                </span>
+                <Link href="/cart">
+                  <ShoppingCart className="w-4 h-4 mr-2" />
+                  Keranjang Saya
+                </Link>
               </Button>
-            ))}
+              <Button
+                asChild
+                variant="outline"
+                className="border-[#48CAE4] text-[#048abf] hover:bg-[#48CAE4]/10"
+              >
+                <Link href="/user/purchases">
+                  <ClipboardList className="w-4 h-4 mr-2" />
+                  Log Pembelian Saya
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
       </section>
@@ -464,7 +661,7 @@ export default function ShopPage() {
         <div className="mb-6">
           <p className="text-slate-600">
             Showing <span className="font-semibold text-slate-900">{filteredPhotos.length}</span> of{" "}
-            <span className="font-semibold text-slate-900">{filteredPhotos.length}</span> photos
+            <span className="font-semibold text-slate-900">{availablePhotos.length}</span> photos
             {searchQuery && (
               <span className="ml-2 text-[#48CAE4]">
                 for &quot;{searchQuery}&quot;
@@ -498,63 +695,106 @@ export default function ShopPage() {
               </div>
             ) : (
               <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4 space-y-4">
-                {displayedPhotos.map((photo) => (
-                  <div 
-                    key={photo.id} 
-                    className="break-inside-avoid mb-4 group cursor-pointer"
-                    onClick={() => handlePhotoClick(photo)}
-                  >
-                    <div className="relative overflow-hidden rounded-lg bg-slate-100 shadow-md hover:shadow-xl transition-all duration-300">
-                      <img
-                        src={photo.previewUrl}
-                        alt={photo.name}
-                        className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
-                        loading="lazy"
-                      />
-                      
-                      {/* Bookmark Button - Top Right */}
-                      <div className="absolute top-3 right-3 z-10">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleBookmark(photo.id);
-                          }}
-                          className={`p-2 rounded-full backdrop-blur-md transition-all duration-300 ${
-                            bookmarkIds.has(photo.id)
-                              ? "bg-[#48CAE4] text-white shadow-lg scale-110"
-                              : "bg-white/80 text-slate-600 hover:bg-white hover:scale-110"
-                          }`}
-                        >
-                          <Bookmark 
-                            className={`w-5 h-5 ${bookmarkIds.has(photo.id) ? "fill-current" : ""}`}
-                          />
-                        </button>
-                      </div>
-                      
-                      {/* Overlay with Photo Info */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-black/0 transition-opacity duration-300">
-                        <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                          <div className="flex items-center justify-between">
-                            <p className="text-lg font-bold">
-                              Rp {photo.price.toLocaleString('id-ID')}
-                            </p>
-                            <Button
-                              size="sm"
-                              className="bg-[#48CAE4] hover:bg-[#3AAFCE] text-white shadow-lg"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleBuyClick(photo);
-                              }}
-                            >
-                              <ShoppingCart className="w-4 h-4 mr-1" />
-                              Buy
-                            </Button>
+                {filteredPhotos.map((photo) => {
+                  const isAddingToCart = addingToCartIds.has(photo.id);
+                  const isSold = photo.sold;
+
+                  return (
+                    <div 
+                      key={photo.id} 
+                      className="break-inside-avoid mb-4 group cursor-pointer"
+                      onClick={() => handlePhotoClick(photo)}
+                    >
+                      <div className="relative overflow-hidden rounded-lg bg-slate-100 shadow-md hover:shadow-xl transition-all duration-300">
+                        <img
+                          src={photo.previewUrl}
+                          alt={photo.name}
+                          className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                        
+                        {/* Bookmark Button - Top Right */}
+                        <div className="absolute top-3 right-3 z-20">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleBookmark(photo.id);
+                            }}
+                            className={`p-2 rounded-full backdrop-blur-md transition-all duration-300 ${
+                              bookmarkIds.has(photo.id)
+                                ? "bg-[#48CAE4] text-white shadow-lg scale-110"
+                                : "bg-white/80 text-slate-600 hover:bg-white hover:scale-110"
+                            }`}
+                          >
+                            <Bookmark 
+                              className={`w-5 h-5 ${bookmarkIds.has(photo.id) ? "fill-current" : ""}`}
+                            />
+                          </button>
+                        </div>
+
+                        {isSold && (
+                          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60">
+                            <span className="px-4 py-2 text-sm font-semibold uppercase tracking-wider text-white bg-red-500 rounded-full shadow">
+                              Terjual
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Overlay with Photo Info */}
+                        <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/10 to-black/0 transition-opacity duration-300">
+                          <div className="p-4 text-white space-y-3">
+                            <div>
+                              <p className="text-lg font-semibold drop-shadow-sm">
+                                {formatCurrency(photo.price)}
+                              </p>
+                              {photo.event?.name && (
+                                <p className="text-xs text-white/80">
+                                  {photo.event.name}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                disabled={isSold || isAddingToCart}
+                                className="bg-white/90 text-slate-900 hover:bg-white shadow"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddToCart(photo);
+                                }}
+                              >
+                                {isAddingToCart ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Menyimpan...
+                                  </>
+                                ) : (
+                                  <>
+                                    <ShoppingCart className="w-4 h-4 mr-2" />
+                                    Keranjang
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={isSold}
+                                className="bg-[#48CAE4] hover:bg-[#3AAFCE] text-white shadow-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleBuyClick(photo);
+                                }}
+                              >
+                                <CreditCard className="w-4 h-4 mr-1" />
+                                Beli Sekarang
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
@@ -562,7 +802,15 @@ export default function ShopPage() {
       </section>
 
       {/* Alert Dialog */}
-      <Dialog open={alertDialog.open} onOpenChange={(open) => setAlertDialog({ ...alertDialog, open })}>
+      <Dialog
+        open={alertDialog.open}
+        onOpenChange={(open) =>
+          setAlertDialog((prev) => ({
+            ...prev,
+            open,
+          }))
+        }
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{alertDialog.title}</DialogTitle>
@@ -571,7 +819,14 @@ export default function ShopPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setAlertDialog({ ...alertDialog, open: false })}>
+            <Button
+              onClick={() =>
+                setAlertDialog((prev) => ({
+                  ...prev,
+                  open: false,
+                }))
+              }
+            >
               OK
             </Button>
           </DialogFooter>
@@ -579,7 +834,15 @@ export default function ShopPage() {
       </Dialog>
 
       {/* Confirm Dialog */}
-      <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog({ ...confirmDialog, open })}>
+      <Dialog
+        open={confirmDialog.open}
+        onOpenChange={(open) =>
+          setConfirmDialog((prev) => ({
+            ...prev,
+            open,
+          }))
+        }
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{confirmDialog.title}</DialogTitle>
@@ -590,14 +853,22 @@ export default function ShopPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}
+              onClick={() =>
+                setConfirmDialog((prev) => ({
+                  ...prev,
+                  open: false,
+                }))
+              }
             >
               Cancel
             </Button>
             <Button
               onClick={() => {
                 confirmDialog.onConfirm();
-                setConfirmDialog({ ...confirmDialog, open: false });
+                setConfirmDialog((prev) => ({
+                  ...prev,
+                  open: false,
+                }));
               }}
             >
               Confirm
@@ -631,7 +902,7 @@ export default function ShopPage() {
               <div className="flex justify-between items-center py-3 px-4 bg-slate-50 rounded-lg">
                 <span className="text-sm text-slate-600">Total Price</span>
                 <span className="text-lg font-bold text-[#48CAE4]">
-                  Rp {selectedPhotoForBuy.price.toLocaleString('id-ID')}
+                  {formatCurrency(selectedPhotoForBuy.price)}
                 </span>
               </div>
 
@@ -726,9 +997,9 @@ export default function ShopPage() {
 
                 <div className="flex justify-between items-center pt-2 border-t">
                   <span className="text-base font-semibold text-slate-900">Total Price</span>
-                  <span className="text-xl font-bold text-[#48CAE4]">
-                    Rp {selectedPhotoForBuy.price.toLocaleString('id-ID')}
-                  </span>
+                <span className="text-xl font-bold text-[#48CAE4]">
+                  {formatCurrency(selectedPhotoForBuy.price)}
+                </span>
                 </div>
               </div>
 
@@ -773,7 +1044,7 @@ export default function ShopPage() {
                               Our payment gateway is currently being set up. Don't worry, you can still complete your purchase!
                             </p>
                             <p className="text-blue-700">
-                              ✓ Select "Manual Transfer" below to proceed with bank transfer
+                              Pilih "Manual Transfer" di bawah untuk melanjutkan pembayaran melalui transfer bank.
                             </p>
                           </div>
                         </div>
@@ -836,23 +1107,120 @@ export default function ShopPage() {
 
       {/* Photo Detail Modal */}
       <Dialog open={photoDetailOpen} onOpenChange={setPhotoDetailOpen}>
-        <DialogContent className="max-w-6xl p-0 bg-transparent border-0">
-          {selectedPhoto && (
-            <>
-              <DialogTitle className="sr-only">
-                {selectedPhoto.name}
-              </DialogTitle>
-              <div className="relative">
-                <img
-                  src={selectedPhoto.previewUrl}
-                  alt={selectedPhoto.name}
-                  className="w-full h-auto max-h-[90vh] object-contain rounded-lg"
-                />
-              </div>
-            </>
-          )}
+        <DialogContent className="max-w-5xl overflow-hidden rounded-3xl border-0 p-0 shadow-2xl">
+          {selectedPhoto &&
+            (() => {
+              const formattedEventDate = formatIndonesianDate(selectedPhoto.event?.eventDate ?? null);
+              const previewSource =
+                selectedPhoto.watermarkUrl ??
+                selectedPhoto.previewUrl ??
+                selectedPhoto.fullUrl;
+
+              return (
+                <div className="grid grid-cols-1 bg-white lg:grid-cols-[3fr,2fr]">
+                  <div className="relative bg-slate-900">
+                    <img
+                      src={previewSource}
+                      alt={selectedPhoto.name}
+                      className="h-full w-full object-contain"
+                    />
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                  </div>
+
+                  <div className="flex flex-col justify-between gap-6 p-6">
+                    <div className="space-y-4">
+                      <DialogTitle className="text-2xl font-semibold text-slate-900">
+                        {selectedPhoto.name}
+                      </DialogTitle>
+                      {selectedPhoto.event?.name && (
+                        <p className="text-sm text-slate-500">
+                          {selectedPhoto.event.name}
+                          {formattedEventDate ? ` - ${formattedEventDate}` : ""}
+                        </p>
+                      )}
+                      {selectedPhoto.photographer?.fullName && (
+                        <p className="text-sm text-slate-500">
+                          Fotografer:{" "}
+                          <span className="font-medium text-slate-900">
+                            {selectedPhoto.photographer.fullName}
+                          </span>
+                        </p>
+                      )}
+
+                      <div className="rounded-2xl bg-slate-100 p-4">
+                        <div className="flex items-center justify-between text-sm text-slate-600">
+                          <span>Harga Foto</span>
+                          <span className="font-semibold text-slate-900">
+                            {formatCurrency(selectedPhoto.price)}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-sm text-slate-600">
+                          <span>Status</span>
+                          <span
+                            className={`font-semibold ${
+                              selectedPhoto.sold ? "text-red-500" : "text-emerald-600"
+                            }`}
+                          >
+                            {selectedPhoto.sold ? "Sudah Terjual" : "Tersedia"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          variant="secondary"
+                          disabled={
+                            selectedPhoto.sold || addingToCartIds.has(selectedPhoto.id)
+                          }
+                          className="flex-1 bg-slate-900/5 text-slate-900 hover:bg-slate-900/10"
+                          onClick={() => handleAddToCart(selectedPhoto)}
+                        >
+                          {addingToCartIds.has(selectedPhoto.id) ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Menambahkan...
+                            </>
+                          ) : (
+                            <>
+                              <ShoppingCart className="mr-2 h-4 w-4" />
+                              Tambah ke Keranjang
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          className="flex-1 bg-[#48CAE4] hover:bg-[#3AAFCE]"
+                          disabled={selectedPhoto.sold}
+                          onClick={() => {
+                            setPhotoDetailOpen(false);
+                            handleBuyClick(selectedPhoto);
+                          }}
+                        >
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          Beli Sekarang
+                        </Button>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (previewSource) {
+                            window.open(previewSource, "_blank", "noopener,noreferrer");
+                          }
+                        }}
+                      >
+                        Lihat Preview Lebih Besar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
         </DialogContent>
       </Dialog>
     </div>
   );
 }
+
+
+

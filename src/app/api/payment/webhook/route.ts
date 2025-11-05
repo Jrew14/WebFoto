@@ -4,6 +4,7 @@ import { purchases, profiles, photos } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { tripayService } from "@/services/tripay.service";
 import { fonnteService } from "@/services/fonnte.service";
+import { purchaseLogService } from "@/services/purchase-log.service";
 
 /**
  * Tripay Webhook Handler
@@ -64,6 +65,12 @@ export async function POST(request: NextRequest) {
       .update(purchases)
       .set(updateData)
       .where(eq(purchases.id, purchase.id));
+
+    await purchaseLogService.log({
+      purchaseId: purchase.id,
+      action: "status_update",
+      note: `Status pembayaran diperbarui menjadi ${paymentStatus} melalui webhook Tripay.`,
+    });
 
     console.log(`[Tripay Webhook] Purchase ${purchase.id} updated to ${paymentStatus}`);
 

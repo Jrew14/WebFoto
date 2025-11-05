@@ -13,7 +13,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
-import { getUserPurchasesAction, getUserBookmarksAction, getUserBookmarkIdsAction, toggleBookmarkAction } from "@/actions";
+import {
+  getUserPurchasesAction,
+  getUserBookmarksAction,
+  getUserBookmarkIdsAction,
+  toggleBookmarkAction,
+} from "@/actions/user.actions";
 import { useRouter } from "next/navigation";
 import type { PurchaseWithDetails } from "@/services/purchase.service";
 import type { BookmarkWithDetails } from "@/services/bookmark.service";

@@ -39,12 +39,14 @@ function ManualPaymentInstructionsContent() {
           }
         }
 
-        // TODO: Load photo details
-        // For now, using placeholder
-        setPhotoDetails({
-          name: "Photo",
-          price: 10000,
-        });
+        const photoResponse = await fetch(`/api/photos/${photoId}`);
+        if (photoResponse.ok) {
+          const photoData = await photoResponse.json();
+          setPhotoDetails(photoData.photo);
+        } else {
+          console.warn("Failed to fetch photo detail, using fallback price");
+          setPhotoDetails(null);
+        }
       } catch (error) {
         console.error("Failed to load payment data:", error);
       } finally {
@@ -105,9 +107,12 @@ function ManualPaymentInstructionsContent() {
     return null;
   }
 
-  const totalAmount = photoDetails?.price || 0;
-  const fee = selectedMethod ? selectedMethod.fee + Math.floor((totalAmount * selectedMethod.feePercentage) / 10000) : 0;
-  const finalAmount = totalAmount + fee;
+  const baseAmount = photoDetails?.price || 0;
+  const fee = selectedMethod
+    ? (selectedMethod.fee || 0) +
+      Math.floor((baseAmount * (selectedMethod.feePercentage || 0)) / 10000)
+    : 0;
+  const finalAmount = baseAmount + fee;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cyan-50 to-blue-50 p-4 md:p-8">
@@ -230,7 +235,7 @@ function ManualPaymentInstructionsContent() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Photo Price</span>
                       <span className="font-medium">
-                        Rp {totalAmount.toLocaleString("id-ID")}
+                        Rp {baseAmount.toLocaleString("id-ID")}
                       </span>
                     </div>
                     {fee > 0 && (

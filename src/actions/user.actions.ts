@@ -31,6 +31,10 @@ export async function getUserPurchasesAction(userId: string) {
   return await purchaseService.getUserPurchases(userId);
 }
 
+export async function getUserOwnedPhotoIdsAction(userId: string, includePending = true) {
+  return await purchaseService.getUserOwnedPhotoIds(userId, includePending);
+}
+
 export async function getTotalRevenueAction() {
   return await purchaseService.getTotalRevenue();
 }
