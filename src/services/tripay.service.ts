@@ -7,7 +7,7 @@ const MODE = process.env.TRIPAY_MODE ?? "production"; // Default to production
 
 if (!API_KEY || !PRIVATE_KEY || !MERCHANT_CODE) {
   console.warn(
-    "⚠️  Tripay environment variables are not fully set. Please check TRIPAY_API_KEY, TRIPAY_PRIVATE_KEY, and TRIPAY_MERCHANT_CODE in admin settings."
+    "âš ï¸  Tripay environment variables are not fully set. Please check TRIPAY_API_KEY, TRIPAY_PRIVATE_KEY, and TRIPAY_MERCHANT_CODE in admin settings."
   );
 }
 
@@ -79,6 +79,7 @@ export interface TripayTransaction {
 }
 
 class TripayService {
+  private fallbackReason: "cloudflare" | "unauthorized_ip" | "development" | null = null;
   private get defaultExpiry(): number {
     const minutes = Number(process.env.TRIPAY_TIMEOUT_MINUTES ?? "120");
     return Math.max(5, minutes) * 60; // seconds
@@ -131,7 +132,6 @@ class TripayService {
   }
 
   async getPaymentChannels(): Promise<TripayChannel[]> {
-    // Check if credentials are configured
     if (!API_KEY || !PRIVATE_KEY || !MERCHANT_CODE) {
       console.error("[Tripay] Credentials not configured");
       throw new Error("Tripay credentials not configured. Please configure in admin settings.");
@@ -153,24 +153,36 @@ class TripayService {
       return [];
     } catch (error) {
       console.error("[Tripay] Failed to get payment channels:", error);
-      
-      // If Cloudflare blocks the request (403), return mock data for development
-      if (
-        error instanceof Error &&
-        /cloudflare/i.test(error.message)
-      ) {
-        console.warn("[Tripay] Using mock payment channels due to Cloudflare block");
-        return this.getMockPaymentChannels();
+
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+
+        if (message.includes("unauthorized ip") || message.includes("whitelist ip")) {
+          console.warn("[Tripay] Tripay rejected the current server IP. Returning fallback channels.");
+          return this.getFallbackPaymentChannels("unauthorized_ip");
+        }
+
+        if (message.includes("cloudflare")) {
+          console.warn("[Tripay] Using mock payment channels due to Cloudflare block");
+          return this.getFallbackPaymentChannels("cloudflare");
+        }
       }
-      
+
       throw error;
     }
   }
 
-  private getMockPaymentChannels(): TripayChannel[] {
-    console.warn("⚠️ [Tripay] Using MOCK payment channels - Cloudflare is blocking production API");
-    console.warn("⚠️ [Tripay] Please contact Tripay support to whitelist your server IP");
-    
+  public getFallbackPaymentChannels(
+    reason: "cloudflare" | "unauthorized_ip" | "development" = "development"
+  ): TripayChannel[] {
+    if (reason === "unauthorized_ip") {
+      console.warn("[Tripay] WARNING: Unauthorized IP detected. Please whitelist this server IP inside the Tripay dashboard.");
+    } else if (reason === "cloudflare") {
+      console.warn("[Tripay] Cloudflare is blocking Tripay requests. Using fallback payment channels.");
+    } else {
+      console.warn("[Tripay] Using fallback payment channels (development mode).");
+    }
+
     return [
       {
         group: "Virtual Account",
@@ -198,19 +210,59 @@ class TripayService {
         name: "Mandiri Virtual Account",
         type: "virtual_account",
         fee_merchant: 0,
-        fee_customer: 4000,
+        fee_customer: 3500,
         minimum_amount: 10000,
         maximum_amount: 1000000000,
       },
       {
-        group: "E-Wallet",
+        group: "Virtual Account",
+        code: "BCAVA",
+        name: "BCA Virtual Account",
+        type: "virtual_account",
+        fee_merchant: 0,
+        fee_customer: 4500,
+        minimum_amount: 10000,
+        maximum_amount: 1000000000,
+      },
+      {
+        group: "QRIS",
         code: "QRIS",
-        name: "QRIS (All E-Wallet)",
+        name: "QRIS Payment",
         type: "qris",
         fee_merchant: 0,
-        fee_customer: 0, // 0.7% calculated dynamically
-        minimum_amount: 1500,
-        maximum_amount: 10000000,
+        fee_customer: 0,
+        minimum_amount: 1000,
+        maximum_amount: 5000000,
+      },
+      {
+        group: "E-Wallet",
+        code: "OVO",
+        name: "OVO",
+        type: "ewallet",
+        fee_merchant: 0,
+        fee_customer: 1500,
+        minimum_amount: 1000,
+        maximum_amount: 5000000,
+      },
+      {
+        group: "E-Wallet",
+        code: "DANA",
+        name: "DANA",
+        type: "ewallet",
+        fee_merchant: 0,
+        fee_customer: 1500,
+        minimum_amount: 1000,
+        maximum_amount: 5000000,
+      },
+      {
+        group: "E-Wallet",
+        code: "LINKAJA",
+        name: "LinkAja",
+        type: "ewallet",
+        fee_merchant: 0,
+        fee_customer: 2000,
+        minimum_amount: 1000,
+        maximum_amount: 5000000,
       },
       {
         group: "Convenience Store",

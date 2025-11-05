@@ -143,6 +143,7 @@ export default function ShopPage() {
   const [selectedPaymentChannel, setSelectedPaymentChannel] = useState<string>("");
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [channelError, setChannelError] = useState<string | null>(null);
+  const [channelWarning, setChannelWarning] = useState<string | null>(null);
 
   // Helper functions for dialogs
   const showAlert = (title: string, description: string) => {
